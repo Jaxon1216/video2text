@@ -9,6 +9,8 @@
 - 全新 Web 界面（React，阅读器风格）：粘贴链接 → 进度 → 带时间戳的文字稿；一键 Copy for AI、复制单段、下载 TXT / Markdown / SRT；B站时间戳可跳转原视频。旧的 Jinja 页面已移除。
 - B站字幕优先：有 CC / AI 字幕（需登录 Cookie，支持 `V2T_COOKIES_FROM_BROWSER=chrome` 直接读浏览器）时直接使用，秒出结果；没有再走 ASR。`--force-asr` 可强制识别。支持 `b23.tv` 短链。
 - 新增 ASR 评测脚本 `scripts/bench_asr.py`：多引擎、有无术语提示词对比，输出 CER、术语召回、RTF、成本。
+- Docker：`docker compose up -d --build` 一键运行（前端 + API + faster-whisper + 抖音 Chromium），数据挂载在 `./data`；支持 `APT_MIRROR` 等国内构建参数；配置可用 `V2T_DEFAULT_PROVIDER` / `V2T_DEFAULT_MODEL` / `V2T_VOLCENGINE_API_KEY` / `V2T_PREFER_SUBTITLES` 环境变量覆盖。
+- 抖音解析的浏览器 UA 改为跟随实际系统（修复 Linux 下详情接口返回空数据）。
 - 项目更名为 video2text：包名 `v2t`、命令 `video2text`、工作目录 `.v2t`、环境变量 `V2T_*`。
 - 移除 Tk 桌面窗口、旧版脚本和原项目素材。
 - 新增 `AGENTS.md` 与 `docs/` 文档体系。

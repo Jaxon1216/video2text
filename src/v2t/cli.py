@@ -18,7 +18,7 @@ from v2t.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, dependency_sync_guid
 from v2t.inputs import parse_source_list, safe_stem
 from v2t.library import WorkspaceLibrary
 from v2t.tasks import TaskService
-from v2t.user_config import AppConfig
+from v2t.user_config import AppConfig, apply_env_overrides
 
 
 def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
@@ -304,9 +304,11 @@ def _load_runtime(
     allow_bootstrap: bool = True,
 ) -> tuple[Settings, AppConfig]:
     settings = Settings.from_workspace(workspace)
-    config = ensure_bootstrap(
-        settings=settings,
-        allow_prompt=allow_bootstrap and sys.stdin.isatty(),
+    config = apply_env_overrides(
+        ensure_bootstrap(
+            settings=settings,
+            allow_prompt=allow_bootstrap and sys.stdin.isatty(),
+        )
     )
     if provider:
         config.default_provider = provider

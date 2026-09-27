@@ -31,3 +31,23 @@ def test_app_config_drops_removed_window_feature(tmp_path: Path) -> None:
     settings.config_path.write_text('{"enabled_features": ["window", "web"]}', encoding="utf-8")
 
     assert AppConfig.load(settings).enabled_features == ["web"]
+
+
+def test_apply_env_overrides_is_runtime_only(tmp_path: Path, monkeypatch) -> None:
+    from v2t.user_config import apply_env_overrides
+
+    settings = Settings.from_workspace(tmp_path / ".v2t")
+    AppConfig().save(settings)
+    monkeypatch.setenv("V2T_DEFAULT_PROVIDER", "volcengine")
+    monkeypatch.setenv("V2T_DEFAULT_MODEL", "bigmodel")
+    monkeypatch.setenv("V2T_VOLCENGINE_API_KEY", "secret-key")
+    monkeypatch.setenv("V2T_PREFER_SUBTITLES", "0")
+
+    config = apply_env_overrides(AppConfig.load(settings))
+
+    assert config.default_provider == "volcengine"
+    assert config.default_model == "bigmodel"
+    assert config.volcengine.api_key == "secret-key"
+    assert config.enabled_providers == ["faster-whisper", "volcengine"]
+    assert config.prefer_subtitles is False
+    assert "secret-key" not in settings.config_path.read_text(encoding="utf-8")

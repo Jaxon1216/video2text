@@ -24,6 +24,8 @@ flowchart LR
 4. 用 urllib 流式下载到 `<工作区>/downloads/douyin-{id}.m4a`，请求头必须带 `Referer: https://www.douyin.com/`（不带会一直挂起）。一个地址失败就换下一个。
 5. 元数据：`desc`（去掉 `#话题` 和 `@` 作为标题）、`author.nickname`、`video.duration`（毫秒转秒）、`caption`（作者文案全文，以后可作为 ASR 提示词）。
 
+浏览器 UA 由 `default_user_agent()` 按系统选择：页面签名会带上浏览器指纹，UA 与实际系统不一致（例如 Linux 容器里用 macOS UA）时，详情接口返回 200 但内容为空。
+
 实测（2026-09）：无头模式 + 本机 Chrome，每条解析约 2 秒，不需要登录；5 分钟视频的音频约 1.7MB，下载不到 1 秒。
 
 ## 配置
@@ -46,6 +48,7 @@ flowchart LR
 | 这是抖音图文作品 | 图文作品没有口播音频 | 不支持 |
 | 抖音详情接口返回 HTTP 403/429 | 触发频率风控 | 等几分钟再试；删除 `<工作区>/browser` 重置浏览器状态 |
 | 抖音音频下载失败 | CDN 地址过期或网络问题 | 重试即可（地址每次解析都会刷新） |
+| 抖音详情接口返回了空数据 | UA 与实际系统不一致，或触发风控 | 检查是否手动改过 UA；稍后重试 |
 | 无法启动浏览器 | 没有 Chrome，也没装 Playwright Chromium | `uv run playwright install chromium` |
 
 ## 抖音改版时怎么查

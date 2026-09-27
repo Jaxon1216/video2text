@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass, field
 
 from v2t.config import Settings
@@ -79,3 +80,24 @@ class AppConfig:
             json.dumps(asdict(self), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+
+def apply_env_overrides(config: AppConfig) -> AppConfig:
+    """Runtime-only overrides (Docker / CI); never written back to config.json."""
+    provider = os.getenv("V2T_DEFAULT_PROVIDER", "").strip()
+    if provider:
+        config.default_provider = provider
+        if provider not in config.enabled_providers:
+            config.enabled_providers.append(provider)
+    model = os.getenv("V2T_DEFAULT_MODEL", "").strip()
+    if model:
+        config.default_model = model
+    api_key = os.getenv("V2T_VOLCENGINE_API_KEY", "").strip()
+    if api_key:
+        config.volcengine.api_key = api_key
+        if "volcengine" not in config.enabled_providers:
+            config.enabled_providers.append("volcengine")
+    prefer_subtitles = os.getenv("V2T_PREFER_SUBTITLES", "").strip().lower()
+    if prefer_subtitles:
+        config.prefer_subtitles = prefer_subtitles in {"1", "true", "yes", "on"}
+    return config

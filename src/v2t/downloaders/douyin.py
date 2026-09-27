@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
+import sys
 import threading
 import urllib.error
 import urllib.request
@@ -17,10 +19,22 @@ from v2t.progress import ProgressReporter
 DETAIL_API_PATH = "/aweme/v1/web/aweme/detail/"
 VIDEO_PAGE_URL = "https://www.douyin.com/video/{video_id}"
 REFERER = "https://www.douyin.com/"
-USER_AGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
-)
+_UA_PLATFORMS = {
+    "darwin": "Macintosh; Intel Mac OS X 10_15_7",
+    "win32": "Windows NT 10.0; Win64; x64",
+}
+
+
+def default_user_agent(platform: str = sys.platform) -> str:
+    """The page signs API calls with a browser fingerprint, so the UA must match the real OS.
+
+    A macOS UA inside a Linux container makes Douyin answer the detail API with an empty body.
+    """
+    system = _UA_PLATFORMS.get(platform, "X11; Linux x86_64")
+    return f"Mozilla/5.0 ({system}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+
+
+USER_AGENT = default_user_agent()
 DEFAULT_TIMEOUT_SECONDS = 30.0
 _CHUNK_SIZE = 1 << 16
 
@@ -69,7 +83,7 @@ def fetch_aweme_detail(
                 response = info.value
                 if response.status != 200:
                     raise DouyinError(f"抖音详情接口返回 HTTP {response.status}，可能触发了风控，请稍后重试")
-                payload = response.json()
+                payload = _parse_json_body(response.body())
             except PlaywrightTimeoutError as exc:
                 raise DouyinError(
                     f"打开抖音页面超时（{timeout_seconds:.0f}s），没有等到视频详情数据。"
@@ -82,6 +96,15 @@ def fetch_aweme_detail(
     if not isinstance(payload, dict):
         raise DouyinError("抖音详情接口返回了无法识别的数据")
     return payload
+
+
+def _parse_json_body(body: bytes) -> Any:
+    if not body.strip():
+        raise DouyinError("抖音详情接口返回了空数据，通常是浏览器指纹被拒（例如 UA 与实际系统不一致）或触发了风控")
+    try:
+        return json.loads(body)
+    except ValueError as exc:
+        raise DouyinError(f"抖音详情接口返回的不是 JSON：{body[:80]!r}") from exc
 
 
 def _launch_context(playwright: Any, *, profile_dir: Path, headless: bool, channel: str) -> Any:

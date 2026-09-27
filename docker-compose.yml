@@ -1,0 +1,24 @@
+services:
+  video2text:
+    build:
+      context: .
+      args:
+        # Empty = upstream defaults. In mainland China e.g.:
+        #   APT_MIRROR=https://mirrors.aliyun.com
+        APT_MIRROR: ${APT_MIRROR:-}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        PLAYWRIGHT_DOWNLOAD_HOST: ${PLAYWRIGHT_DOWNLOAD_HOST:-}
+    image: video2text:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      # Workspace: config.json, SQLite, transcripts, downloads, cookies.txt and the model cache (models/).
+      - ./data:/data
+    # Chromium (Douyin page capture) crashes with Docker's default 64MB /dev/shm.
+    shm_size: "1gb"
+    environment:
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+      V2T_DEFAULT_PROVIDER: ${V2T_DEFAULT_PROVIDER:-faster-whisper}
+      V2T_DEFAULT_MODEL: ${V2T_DEFAULT_MODEL:-small}
+      V2T_VOLCENGINE_API_KEY: ${V2T_VOLCENGINE_API_KEY:-}
+    restart: unless-stopped

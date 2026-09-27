@@ -1,0 +1,13 @@
+.git
+.venv
+.v2t
+.b2t
+.pytest_cache
+**/__pycache__
+data
+bench
+tests
+docs
+web/node_modules
+web/dist
+*.tsbuildinfo

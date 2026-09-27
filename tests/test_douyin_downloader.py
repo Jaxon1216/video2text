@@ -191,3 +191,21 @@ def test_download_rejects_non_douyin_source(tmp_path: Path) -> None:
     source = SourceRef(raw_input="BV1xx411c7XD", kind="bilibili", display_name="BV1xx411c7XD")
     with pytest.raises(ValueError):
         DouyinDownloader(fetch_detail=lambda url, **kwargs: {}).download(source, settings)
+
+
+def test_default_user_agent_matches_platform() -> None:
+    from v2t.downloaders.douyin import default_user_agent
+
+    assert "Macintosh" in default_user_agent("darwin")
+    assert "X11; Linux" in default_user_agent("linux")
+    assert "Windows NT" in default_user_agent("win32")
+
+
+def test_empty_detail_body_explains_fingerprint_rejection() -> None:
+    from v2t.downloaders.douyin import _parse_json_body
+
+    with pytest.raises(DouyinError, match="空数据"):
+        _parse_json_body(b"")
+    with pytest.raises(DouyinError, match="不是 JSON"):
+        _parse_json_body(b"<html>")
+    assert _parse_json_body(b'{"aweme_detail": {}}') == {"aweme_detail": {}}

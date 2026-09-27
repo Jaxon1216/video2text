@@ -40,3 +40,9 @@
 - 背景：B站很多技术视频有 CC 或 AI 字幕，直接用比 ASR 快得多、通常更准；但字幕需要登录 Cookie。
 - 决定：`Downloader` 增加可选的 `fetch_subtitles`，pipeline 先取字幕，拿不到或出错就照常下载 + ASR。Cookie 支持 cookies.txt 与 `V2T_COOKIES_FROM_BROWSER`。
 - 原因：不改变没有 Cookie 时的行为，只在条件满足时加速；抖音没有可用字幕，保持 ASR。
+
+## D8 Docker 镜像只依赖一个基础镜像
+
+- 背景：本机网络下 Docker Hub、ghcr.io 拉取超时，`deb.debian.org` 不稳定；PyPI 与 Playwright CDN 可用。
+- 决定：前端构建和运行时都基于 `python:3.12-slim`（前端用 apt 装 Node 20）；uv 通过 pip 安装；不写 `# syntax=`；`APT_MIRROR` / `PIP_INDEX_URL` / `PLAYWRIGHT_DOWNLOAD_HOST` 作为可选构建参数；镜像不含 openai-whisper（torch）。
+- 原因：网络受限时只要本地有一个基础镜像就能构建；镜像体积可控。

@@ -85,6 +85,7 @@ flowchart LR
 | `V2T_LANG` | 界面语言 |
 | `V2T_COOKIE_FILE` | B站 cookies.txt 路径（默认 `<工作区>/cookies.txt`） |
 | `V2T_USE_PROXY` | B站下载是否走系统代理（默认直连） |
+| `V2T_DEFAULT_PROVIDER` / `V2T_DEFAULT_MODEL` / `V2T_VOLCENGINE_API_KEY` / `V2T_PREFER_SUBTITLES` | 运行时覆盖 `config.json`（不写回文件），主要给 Docker 用 |
 | `V2T_WEB_DIST` | 前端构建产物目录（默认仓库里的 `web/dist`） |
 | `V2T_TASK_WORKERS` | 同时执行的任务数（默认 1；只用云 ASR 时可调大） |
 | `HF_ENDPOINT` | HuggingFace 镜像，国内下载 faster-whisper 模型用 `https://hf-mirror.com` |

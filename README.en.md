@@ -42,6 +42,8 @@ uv run video2text tx "https://v.douyin.com/xxxx/"
 uv run video2text ui   # http://127.0.0.1:8000
 ```
 
+Docker: `docker compose up -d --build`, then open http://localhost:8000 (details in [docs/docker.md](docs/docker.md)).
+
 See [AGENTS.md](AGENTS.md) and [docs/](docs/) for architecture, development and API docs.
 
 ## License

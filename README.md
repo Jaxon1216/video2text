@@ -64,6 +64,14 @@ uv run video2text ui   # http://127.0.0.1:8000
 
 首次使用 faster-whisper 会从 HuggingFace 下载模型；国内网络请先 `export HF_ENDPOINT=https://hf-mirror.com`。
 
+## Docker
+
+```bash
+docker compose up -d --build   # 然后打开 http://localhost:8000
+```
+
+数据保存在 `./data`。国内网络构建见 [docs/docker.md](docs/docker.md)（`APT_MIRROR=https://mirrors.aliyun.com`）。
+
 ## 命令一览
 
 | 命令 | 缩写 | 说明 |
@@ -85,6 +93,7 @@ uv run video2text ui   # http://127.0.0.1:8000
 - [docs/api.md](docs/api.md)：HTTP API
 - [docs/platforms/](docs/platforms/)：各平台实现细节
 - [docs/benchmark.md](docs/benchmark.md)：本地 / 云端 ASR 评测方法
+- [docs/docker.md](docs/docker.md)：Docker 部署
 - [docs/roadmap.md](docs/roadmap.md)：路线图
 
 ## 使用须知

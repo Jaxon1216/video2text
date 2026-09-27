@@ -29,6 +29,7 @@ uv run video2text tx "<B站链接 / 抖音分享文本 / 本地文件>"
 uv run video2text ui                                    # 启动 Web，默认 http://127.0.0.1:8000
 (cd web && npm run dev)                                 # 前端开发：Vite 5173 端口，/api 代理到 8000
 uv run video2text doctor                                # 检查依赖
+docker compose up -d --build                            # Docker 运行（国内加 APT_MIRROR=https://mirrors.aliyun.com，见 docs/docker.md）
 uv run video2text export <视频ID> --format md            # 导出 txt / plain / md / srt
 ```
 
@@ -67,7 +68,7 @@ docs/               架构、路线图、决策、平台说明、API
 - **新增 ASR**：`transcribers/` 新建实现，返回的 `segments` 必须用 `normalize_segments` 归一化 → `factory.py` + `user_config.py` 注册 → `bootstrap.py` / `doctor` 接入。
 - **测试不访问网络**：下载器、云 ASR、浏览器一律 mock；真实链接只用于手动端到端验证。
 - **保持简单**：不引入 Redis、消息队列、复杂数据库、登录权限等；SQLite + 线程池足够。确需引入必须先在 `docs/decisions.md` 记录理由。
-- **抖音**：不逆向 `a_bogus` 等签名算法；走 Playwright 浏览器截获（见 `docs/platforms/douyin.md`）。
+- **抖音**：不逆向 `a_bogus` 等签名算法；走 Playwright 浏览器截获（见 `docs/platforms/douyin.md`）。浏览器 UA 必须与实际系统一致（`default_user_agent`），否则详情接口返回空数据。
 - **前端**：分段规则（30 秒）必须和 `formatters.py` 保持一致；Copy for AI 的文本格式在 `web/src/format.ts` 的 `buildCopyForAI`。
 - 代码风格跟随现有代码：`from __future__ import annotations`、dataclass、类型标注、少量必要注释。
 
