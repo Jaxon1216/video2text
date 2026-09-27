@@ -27,6 +27,7 @@ def build_pipeline(
         settings=settings,
         downloaders=build_downloaders(),
         transcriber=build_transcriber(config=config, provider=provider, model=model),
+        prefer_subtitles=config.prefer_subtitles,
     )
 
 

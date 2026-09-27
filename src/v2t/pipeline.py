@@ -10,8 +10,9 @@ from pathlib import Path
 from v2t.config import Settings
 from v2t.downloaders.base import Downloader
 from v2t.inputs import parse_source, safe_stem
-from v2t.models import REMOTE_SOURCE_KINDS, DownloadResult, TranscriptResult
+from v2t.models import REMOTE_SOURCE_KINDS, DownloadResult, SourceRef, SubtitleResult, TranscriptResult
 from v2t.progress import ProgressReporter
+from v2t.segments import join_text
 from v2t.transcribers.base import Transcriber
 
 
@@ -22,10 +23,12 @@ class V2TPipeline:
         settings: Settings,
         downloaders: Mapping[str, Downloader],
         transcriber: Transcriber,
+        prefer_subtitles: bool = True,
     ) -> None:
         self.settings = settings
         self.downloaders = dict(downloaders)
         self.transcriber = transcriber
+        self.prefer_subtitles = prefer_subtitles
 
     def transcribe(
         self,
@@ -40,19 +43,29 @@ class V2TPipeline:
             progress.running("preparing", message="preparing")
         source = parse_source(source_input)
         downloaded: DownloadResult | None = None
+        subtitle: SubtitleResult | None = None
+        audio_path: Path | None = None
+        video_path: Path | None = None
 
         if source.kind in REMOTE_SOURCE_KINDS:
             downloader = self.downloaders.get(source.kind)
             if downloader is None:
                 raise RuntimeError(f"no downloader registered for source kind: {source.kind}")
-            downloaded = downloader.download(source, self.settings, progress=progress)
-            audio_path = self._extract_audio(
-                downloaded.video_path,
-                safe_stem(downloaded.title or source.display_name),
-                progress=progress,
-            )
-            base_name = downloaded.title or source.display_name
-            video_path = downloaded.video_path
+            if self.prefer_subtitles:
+                subtitle = self._try_subtitles(downloader, source, progress)
+            if subtitle is not None:
+                source = subtitle.source
+                base_name = subtitle.title or source.display_name
+            else:
+                downloaded = downloader.download(source, self.settings, progress=progress)
+                source = downloaded.source
+                audio_path = self._extract_audio(
+                    downloaded.video_path,
+                    safe_stem(downloaded.title or source.display_name),
+                    progress=progress,
+                )
+                base_name = downloaded.title or source.display_name
+                video_path = downloaded.video_path
         elif source.kind == "video":
             assert source.path is not None
             audio_path = self._extract_audio(source.path, safe_stem(source.display_name), progress=progress)
@@ -62,53 +75,87 @@ class V2TPipeline:
             assert source.path is not None
             audio_path = source.path
             base_name = source.display_name
-            video_path = None
 
-        transcription = self.transcriber.transcribe(audio_path, prompt=prompt, progress=progress)
-        text = transcription.get("text", "").strip()
-        if not text:
-            raise RuntimeError("transcriber returned an empty transcript")
+        if subtitle is not None:
+            segments = list(subtitle.segments)
+            text = ""
+            for segment in segments:
+                text = join_text(text, str(segment["text"]))
+            engine, model, language, transcript_source = "subtitle", subtitle.language, subtitle.language, "subtitle"
+            platform_metadata: dict | None = subtitle.metadata
+            webpage_url = subtitle.webpage_url
+        else:
+            assert audio_path is not None
+            transcription = self.transcriber.transcribe(audio_path, prompt=prompt, progress=progress)
+            text = transcription.get("text", "").strip()
+            if not text:
+                raise RuntimeError("transcriber returned an empty transcript")
+            segments = list(transcription.get("segments") or [])
+            engine = self.transcriber.name
+            model = str(transcription.get("model") or "")
+            language = transcription.get("language")
+            transcript_source = "asr"
+            platform_metadata = downloaded.metadata if downloaded else None
+            webpage_url = downloaded.webpage_url if downloaded else None
 
         if progress is not None:
             progress.running("writing_outputs", message="writing_outputs", indeterminate=True)
         transcript_path = self._resolve_output_path(base_name, output)
         metadata_path = self._resolve_metadata_path(transcript_path)
         transcript_path.parent.mkdir(parents=True, exist_ok=True)
-        transcript_path.write_text(text + "\n", encoding="utf-8")
+        transcript_path.write_text(text.strip() + "\n", encoding="utf-8")
 
         metadata = {
             "source": {
                 "raw_input": source.raw_input,
                 "kind": source.kind,
                 "bv": source.bv,
-                "video_id": source.video_id or (downloaded.metadata.get("id") if downloaded else None),
+                "video_id": source.video_id or (platform_metadata or {}).get("id"),
                 "url": source.url,
-                "webpage_url": downloaded.webpage_url if downloaded else None,
+                "webpage_url": webpage_url,
                 "path": str(source.path) if source.path else None,
             },
-            "engine": self.transcriber.name,
-            "model": transcription.get("model"),
-            "audio_path": str(audio_path),
+            "engine": engine,
+            "model": model,
+            "audio_path": str(audio_path) if audio_path else None,
             "video_path": str(video_path) if video_path else None,
-            "download": downloaded.metadata if downloaded else None,
-            "language": transcription.get("language"),
+            "download": platform_metadata,
+            "language": language,
             "generated_at": datetime.now().isoformat(),
-            "transcript_source": "asr",
-            "segments": list(transcription.get("segments") or []),
+            "transcript_source": transcript_source,
+            "segments": segments,
         }
         metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
 
         return TranscriptResult(
             source=source,
-            engine=self.transcriber.name,
-            model=str(transcription.get("model") or ""),
-            text=text,
+            engine=engine,
+            model=model,
+            text=text.strip(),
             audio_path=audio_path,
             transcript_path=transcript_path,
             metadata_path=metadata_path,
             video_path=video_path,
             metadata=metadata,
         )
+
+    def _try_subtitles(
+        self,
+        downloader: Downloader,
+        source: SourceRef,
+        progress: ProgressReporter | None,
+    ) -> SubtitleResult | None:
+        try:
+            return downloader.fetch_subtitles(source, self.settings, progress=progress)
+        except Exception as exc:  # noqa: BLE001 - subtitles are an optimisation; ASR is the fallback
+            if progress is not None:
+                progress.running(
+                    "downloading",
+                    message="subtitles_unavailable",
+                    indeterminate=True,
+                    detail={"subtitle_error": str(exc)[:300]},
+                )
+            return None
 
     def _extract_audio(self, video_path: Path, stem: str, progress: ProgressReporter | None = None) -> Path:
         ffmpeg = shutil.which("ffmpeg")

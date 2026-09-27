@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 from v2t.models import TranscriptDocument
-from v2t.segments import Segment
+from v2t.segments import Segment, join_text
 
 DEFAULT_BLOCK_SECONDS = 30.0
 EXPORT_FORMATS = ("txt", "plain", "md", "srt")
 PLATFORM_LABELS = {"bilibili": "B站", "douyin": "抖音", "video": "本地视频", "audio": "本地音频"}
-
-_CJK = re.compile(r"[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]")
-
 
 @dataclass(slots=True)
 class ExportResult:
@@ -35,15 +31,6 @@ def format_srt_timestamp(seconds: float) -> str:
     minutes, millis = divmod(millis, 60_000)
     secs, millis = divmod(millis, 1000)
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
-
-
-def join_text(left: str, right: str) -> str:
-    if not left:
-        return right
-    if not right:
-        return left
-    separator = "" if _CJK.match(left[-1]) or _CJK.match(right[0]) else " "
-    return f"{left}{separator}{right}"
 
 
 def group_segments(segments: list[Segment], block_seconds: float = DEFAULT_BLOCK_SECONDS) -> list[Segment]:

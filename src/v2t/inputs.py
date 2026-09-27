@@ -11,6 +11,7 @@ BV_PATTERN = re.compile(r"(BV[0-9A-Za-z]{10})")
 # Share texts mix URLs with CJK punctuation, e.g. "复制打开抖音，看看【xx】 https://v.douyin.com/abc/ A@T.yG"
 URL_PATTERN = re.compile(r"https?://[^\s\u3000-\u303f\uff00-\uffef\"'<>]+")
 DOUYIN_HOST_SUFFIXES = ("douyin.com", "iesdouyin.com")
+BILIBILI_SHORT_HOSTS = ("b23.tv", "bili2233.cn")
 DOUYIN_ID_PATTERNS = (
     re.compile(r"/(?:share/)?(?:video|note|slides)/(\d{8,})"),
     re.compile(r"[?&](?:modal_id|aweme_id|vid)=(\d{8,})"),
@@ -55,6 +56,9 @@ def parse_source(raw_input: str) -> SourceRef:
         )
 
     match = BV_PATTERN.search(extracted_url or value)
+    if extracted_url and not match and _host_matches(extracted_url, BILIBILI_SHORT_HOSTS):
+        # b23.tv short links hide the BV id; the downloader resolves the redirect before fetching.
+        return SourceRef(raw_input=value, kind="bilibili", display_name="bilibili-share", url=extracted_url)
     if match:
         bv = match.group(1)
         url = extracted_url or f"https://www.bilibili.com/video/{bv}"
@@ -90,8 +94,16 @@ def extract_douyin_video_id(url: str) -> str | None:
 
 
 def _is_douyin_url(url: str) -> bool:
+    return _host_matches(url, DOUYIN_HOST_SUFFIXES)
+
+
+def is_bilibili_short_url(url: str | None) -> bool:
+    return bool(url) and _host_matches(url, BILIBILI_SHORT_HOSTS)
+
+
+def _host_matches(url: str, suffixes: tuple[str, ...]) -> bool:
     host = urlparse(url).netloc.lower().split(":")[0]
-    return any(host == suffix or host.endswith("." + suffix) for suffix in DOUYIN_HOST_SUFFIXES)
+    return any(host == suffix or host.endswith("." + suffix) for suffix in suffixes)
 
 
 def parse_source_list(raw_input: str) -> list[str]:

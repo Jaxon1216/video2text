@@ -37,7 +37,7 @@ class WorkspaceLibrary:
             engine=result.engine,
             model=result.model,
             video_path=str(result.video_path) if result.video_path else None,
-            audio_path=str(result.audio_path),
+            audio_path=str(result.audio_path) if result.audio_path else "",
             metadata_path=str(metadata_path),
         )
         if self.database.get_active_transcript_version(video_id) is None:
@@ -172,7 +172,7 @@ class WorkspaceLibrary:
             **result.metadata,
             "engine": result.engine,
             "model": result.model,
-            "audio_path": str(result.audio_path),
+            "audio_path": str(result.audio_path) if result.audio_path else None,
             "video_path": str(result.video_path) if result.video_path else None,
             "transcript_path": str(transcript_path),
         }

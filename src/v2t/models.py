@@ -33,12 +33,24 @@ class DownloadResult:
 
 
 @dataclass(slots=True)
+class SubtitleResult:
+    """Platform-provided subtitles, used instead of ASR when available."""
+
+    source: SourceRef
+    language: str
+    segments: list[dict[str, Any]]
+    title: str | None = None
+    webpage_url: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class TranscriptResult:
     source: SourceRef
     engine: str
     model: str
     text: str
-    audio_path: Path
+    audio_path: Path | None
     transcript_path: Path
     metadata_path: Path
     video_path: Path | None = None

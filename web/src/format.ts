@@ -33,6 +33,8 @@ const MESSAGE_LABELS: Record<string, string> = {
   downloading: "正在下载",
   download_finished: "下载完成",
   loading_model: "正在加载模型",
+  checking_subtitles: "正在检查平台字幕",
+  subtitles_unavailable: "字幕获取失败，改用语音识别",
 };
 
 export const PIPELINE_STAGES = ["downloading", "extracting_audio", "transcribing", "writing_outputs"] as const;
@@ -107,8 +109,14 @@ export function transcriptBody(document: TranscriptDocument): string {
 }
 
 export function sourceDescription(document: TranscriptDocument): string {
-  if (document.transcript_source === "subtitle") return "平台字幕";
+  if (document.transcript_source === "subtitle") {
+    return document.model.startsWith("ai-") ? "平台 AI 字幕" : "平台字幕";
+  }
   return `自动语音识别（${[document.engine, document.model].filter(Boolean).join(" ")}）`;
+}
+
+function isHumanSubtitle(document: TranscriptDocument): boolean {
+  return document.transcript_source === "subtitle" && !document.model.startsWith("ai-");
 }
 
 export function buildCopyForAI(document: TranscriptDocument): string {
@@ -123,7 +131,7 @@ export function buildCopyForAI(document: TranscriptDocument): string {
       .join(" | "),
     document.url ? `链接：${document.url}` : null,
     `文字稿来源：${sourceDescription(document)}${
-      document.transcript_source === "subtitle" ? "" : "，可能有错别字、同音字或专业术语识别错误，请结合上下文理解"
+      isHumanSubtitle(document) ? "" : "，可能有错别字、同音字或专业术语识别错误，请结合上下文理解"
     }`,
   ].filter(Boolean);
 

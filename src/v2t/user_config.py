@@ -45,6 +45,7 @@ class AppConfig:
     enabled_features: list[str] = field(default_factory=lambda: ["web"])
     default_provider: str = DEFAULT_PROVIDER
     default_model: str = "small"
+    prefer_subtitles: bool = True
     faster_whisper: FasterWhisperConfig = field(default_factory=FasterWhisperConfig)
     sensevoice: SenseVoiceConfig = field(default_factory=SenseVoiceConfig)
     volcengine: VolcengineConfig = field(default_factory=VolcengineConfig)
@@ -66,6 +67,7 @@ class AppConfig:
             enabled_features=features,
             default_provider=data.get("default_provider", DEFAULT_PROVIDER),
             default_model=data.get("default_model", "small"),
+            prefer_subtitles=bool(data.get("prefer_subtitles", True)),
             faster_whisper=FasterWhisperConfig(**data.get("faster_whisper", {})),
             sensevoice=SenseVoiceConfig(**data.get("sensevoice", {})),
             volcengine=VolcengineConfig(**data.get("volcengine", {})),

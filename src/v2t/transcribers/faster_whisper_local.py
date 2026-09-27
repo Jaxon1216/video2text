@@ -5,10 +5,9 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from v2t.formatters import join_text
 from v2t.i18n import dependency_sync_guidance
 from v2t.progress import ProgressReporter
-from v2t.segments import Segment
+from v2t.segments import Segment, join_text
 from v2t.transcribers.base import Transcriber
 
 # Whisper tends to answer Mandarin in Traditional characters without punctuation; a Simplified,

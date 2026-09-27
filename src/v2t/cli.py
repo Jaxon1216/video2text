@@ -48,6 +48,7 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         provider: str | None = typer.Option(None, "--provider", help=tr(language, "opt_provider_help")),
         model: str | None = typer.Option(None, "--model", help=tr(language, "opt_model_help")),
         prompt: str = typer.Option("", "--prompt", help=tr(language, "opt_prompt_help")),
+        force_asr: bool = typer.Option(False, "--force-asr", help=tr(language, "opt_force_asr_help")),
         output: Path | None = typer.Option(None, "--output", help=tr(language, "opt_output_help")),
         export_format: str | None = typer.Option(None, "--format", help=tr(language, "opt_format_help")),
         workspace: Path | None = typer.Option(None, "--workspace", help=tr(language, "opt_workspace_help")),
@@ -57,6 +58,8 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
             if export_format and export_format.lower() not in EXPORT_FORMATS:
                 raise ValueError(f"unsupported export format: {export_format} (choose from {', '.join(EXPORT_FORMATS)})")
             settings, config = _load_runtime(workspace=workspace, provider=provider, model=model)
+            if force_asr:
+                config.prefer_subtitles = False
             renderer = TqdmTaskRenderer(config.language)
             service = _build_task_service(
                 settings=settings,
@@ -118,12 +121,15 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         provider: str | None = typer.Option(None, "--provider", help=tr(language, "opt_provider_help")),
         model: str | None = typer.Option(None, "--model", help=tr(language, "opt_model_help")),
         prompt: str = typer.Option("", "--prompt", help=tr(language, "opt_prompt_help")),
+        force_asr: bool = typer.Option(False, "--force-asr", help=tr(language, "opt_force_asr_help")),
         workspace: Path | None = typer.Option(None, "--workspace", help=tr(language, "opt_workspace_help")),
     ) -> None:
         """Submit multiple transcription tasks from arguments or a newline-separated file."""
         selected_language = _detect_preferred_language(workspace)
         try:
             settings, config = _load_runtime(workspace=workspace, provider=provider, model=model)
+            if force_asr:
+                config.prefer_subtitles = False
             service = _build_task_service(
                 settings=settings,
                 config=config,
