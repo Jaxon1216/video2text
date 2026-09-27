@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from b2t.config import Settings
-from b2t.downloaders import YtDlpDownloader
+from b2t.downloaders import Downloader, DouyinDownloader, YtDlpDownloader
 from b2t.pipeline import B2TPipeline
 from b2t.transcribers import LocalWhisperTranscriber
 from b2t.user_config import AppConfig
@@ -48,6 +48,13 @@ def build_pipeline(
 
     return B2TPipeline(
         settings=settings,
-        downloader=YtDlpDownloader(),
+        downloaders=build_downloaders(),
         transcriber=transcriber,
     )
+
+
+def build_downloaders() -> dict[str, Downloader]:
+    return {
+        "bilibili": YtDlpDownloader(),
+        "douyin": DouyinDownloader(),
+    }

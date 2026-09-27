@@ -80,3 +80,7 @@ flowchart LR
 | `B2T_LANG` | 界面语言 |
 | `B2T_COOKIE_FILE` | B站 cookies.txt 路径（默认 `<工作区>/cookies.txt`） |
 | `B2T_USE_PROXY` | B站下载是否走系统代理（默认直连） |
+| `B2T_DOUYIN_HEADLESS` | 抖音解析是否用无头浏览器（默认 `1`） |
+| `B2T_DOUYIN_BROWSER` | 抖音解析用哪个浏览器：`auto`（默认，先本机 Chrome 再自带 Chromium）/ `chrome` / `chromium` |
+
+平台细节见 `docs/platforms/`。

@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from b2t.config import Settings
 from b2t.downloaders.base import Downloader
 from b2t.models import DownloadResult, SourceRef
@@ -50,7 +52,7 @@ def test_pipeline_transcribes_bilibili_source(tmp_path: Path) -> None:
 
     pipeline = PipelineUnderTest(
         settings=settings,
-        downloader=FakeDownloader(video_path),
+        downloaders={"bilibili": FakeDownloader(video_path)},
         transcriber=FakeTranscriber(),
     )
 
@@ -59,6 +61,39 @@ def test_pipeline_transcribes_bilibili_source(tmp_path: Path) -> None:
     assert result.transcript_path.exists()
     assert result.metadata_path.exists()
     assert result.video_path == video_path
+
+
+def test_pipeline_routes_douyin_source_to_douyin_downloader(tmp_path: Path) -> None:
+    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings.ensure_directories()
+    audio_path = tmp_path / "douyin.m4a"
+    audio_path.write_bytes(b"audio")
+
+    pipeline = PipelineUnderTest(
+        settings=settings,
+        downloaders={
+            "bilibili": FakeDownloader(tmp_path / "wrong.mp4"),
+            "douyin": FakeDownloader(audio_path),
+        },
+        transcriber=FakeTranscriber(),
+    )
+
+    result = pipeline.transcribe("复制打开抖音 https://www.douyin.com/video/7671185082790530347 看看")
+    assert result.source.kind == "douyin"
+    assert result.video_path == audio_path
+    assert result.metadata["source"]["video_id"] == "7671185082790530347"
+
+
+def test_pipeline_rejects_remote_source_without_downloader(tmp_path: Path) -> None:
+    settings = Settings.from_workspace(tmp_path / ".b2t")
+    pipeline = PipelineUnderTest(
+        settings=settings,
+        downloaders={"bilibili": FakeDownloader(tmp_path / "unused.mp4")},
+        transcriber=FakeTranscriber(),
+    )
+
+    with pytest.raises(RuntimeError, match="no downloader registered"):
+        pipeline.transcribe("https://v.douyin.com/abc123/")
 
 
 def test_pipeline_respects_custom_output_file(tmp_path: Path) -> None:
@@ -70,7 +105,7 @@ def test_pipeline_respects_custom_output_file(tmp_path: Path) -> None:
 
     pipeline = PipelineUnderTest(
         settings=settings,
-        downloader=FakeDownloader(tmp_path / "unused.mp4"),
+        downloaders={"bilibili": FakeDownloader(tmp_path / "unused.mp4")},
         transcriber=FakeTranscriber(),
     )
 

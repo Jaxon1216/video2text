@@ -18,9 +18,13 @@ def uv_available(which=shutil.which) -> bool:
     return which("uv") is not None
 
 
+# Douyin support is part of the core product; `uv sync` drops any extra it is not told about.
+ALWAYS_EXTRAS = ("douyin",)
+
+
 def collect_required_extras(*, providers: list[str], features: list[str]) -> list[str]:
     extras: list[str] = []
-    for name in [*providers, *features]:
+    for name in [*providers, *features, *ALWAYS_EXTRAS]:
         mapped = name if name != "window" else ""
         if mapped and mapped not in extras:
             extras.append(mapped)

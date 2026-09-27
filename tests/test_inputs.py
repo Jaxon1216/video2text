@@ -43,6 +43,44 @@ def test_parse_bilibili_url_ignores_invalid_page_number(page: str) -> None:
     assert source.page is None
 
 
+def test_parse_bilibili_share_text_keeps_extracted_url() -> None:
+    source = parse_source("【讲清楚线程池】 https://www.bilibili.com/video/BV1xx411c7XD/?p=3&share_source=copy_web")
+    assert source.kind == "bilibili"
+    assert source.bv == "BV1xx411c7XD"
+    assert source.url == "https://www.bilibili.com/video/BV1xx411c7XD/?p=3&share_source=copy_web"
+    assert source.page == 3
+
+
+def test_parse_douyin_share_text_with_short_link() -> None:
+    share = "2.30 复制打开抖音，看看【蜡笔小浩的作品】线程池到底是怎么工作的 # 计算机 ... https://v.douyin.com/0CzNF8FbQ7s/ 09/29 vFU:/ :6pm B@T.Ym"
+    source = parse_source(share)
+    assert source.kind == "douyin"
+    assert source.url == "https://v.douyin.com/0CzNF8FbQ7s/"
+    assert source.video_id is None
+    assert source.display_name == "douyin-share"
+    assert source.raw_input == share
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://www.douyin.com/video/7671185082790530347",
+        "https://www.iesdouyin.com/share/video/7671185082790530347/?from_ssr=1",
+        "https://www.douyin.com/jingxuan?modal_id=7671185082790530347",
+    ],
+)
+def test_parse_douyin_url_extracts_video_id(url: str) -> None:
+    source = parse_source(url)
+    assert source.kind == "douyin"
+    assert source.video_id == "7671185082790530347"
+    assert source.display_name == "douyin-7671185082790530347"
+
+
+def test_parse_rejects_unknown_url() -> None:
+    with pytest.raises(ValueError, match="Douyin share link"):
+        parse_source("https://example.com/video/123")
+
+
 def test_parse_local_audio_file(tmp_path: Path) -> None:
     audio_path = tmp_path / "sample.wav"
     audio_path.write_bytes(b"wav")

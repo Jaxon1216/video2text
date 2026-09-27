@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
 from b2t.config import Settings
 from b2t.downloaders.base import Downloader
 from b2t.inputs import parse_source, safe_stem
-from b2t.models import DownloadResult, TranscriptResult
+from b2t.models import REMOTE_SOURCE_KINDS, DownloadResult, TranscriptResult
 from b2t.progress import ProgressReporter
 from b2t.transcribers.base import Transcriber
 
@@ -19,11 +20,11 @@ class B2TPipeline:
         self,
         *,
         settings: Settings,
-        downloader: Downloader,
+        downloaders: Mapping[str, Downloader],
         transcriber: Transcriber,
     ) -> None:
         self.settings = settings
-        self.downloader = downloader
+        self.downloaders = dict(downloaders)
         self.transcriber = transcriber
 
     def transcribe(
@@ -40,8 +41,11 @@ class B2TPipeline:
         source = parse_source(source_input)
         downloaded: DownloadResult | None = None
 
-        if source.kind == "bilibili":
-            downloaded = self.downloader.download(source, self.settings, progress=progress)
+        if source.kind in REMOTE_SOURCE_KINDS:
+            downloader = self.downloaders.get(source.kind)
+            if downloader is None:
+                raise RuntimeError(f"no downloader registered for source kind: {source.kind}")
+            downloaded = downloader.download(source, self.settings, progress=progress)
             audio_path = self._extract_audio(
                 downloaded.video_path,
                 safe_stem(downloaded.title or source.display_name),
@@ -77,7 +81,9 @@ class B2TPipeline:
                 "raw_input": source.raw_input,
                 "kind": source.kind,
                 "bv": source.bv,
+                "video_id": source.video_id or (downloaded.metadata.get("id") if downloaded else None),
                 "url": source.url,
+                "webpage_url": downloaded.webpage_url if downloaded else None,
                 "path": str(source.path) if source.path else None,
             },
             "engine": self.transcriber.name,

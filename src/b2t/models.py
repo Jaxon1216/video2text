@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 
-SourceKind = Literal["bilibili", "audio", "video"]
+SourceKind = Literal["bilibili", "douyin", "audio", "video"]
+REMOTE_SOURCE_KINDS: frozenset[str] = frozenset({"bilibili", "douyin"})
 TaskStatus = Literal["queued", "running", "completed", "failed", "cancelled"]
 
 
@@ -19,6 +20,7 @@ class SourceRef:
     bv: str | None = None
     path: Path | None = None
     page: int | None = None
+    video_id: str | None = None
 
 
 @dataclass(slots=True)
