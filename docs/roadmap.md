@@ -7,7 +7,7 @@
 | 0 | 文档地基：AGENTS.md、architecture、roadmap、decisions | 完成 |
 | 1 | 抖音解析：分享文本识别、Playwright 截获、下载音频、测试与文档 | 完成 |
 | 2 | 减法与全面改名：删 Tk 窗口 / archive / 原作者素材；b2t -> v2t，bili2text -> video2text | 完成 |
-| 3 | 时间戳 segments 与导出（带时间戳 TXT / Markdown / SRT，导出 API，CLI `--format`） | 待办 |
+| 3 | 时间戳 segments 与导出（带时间戳 TXT / Markdown / SRT，导出 API，CLI `--format`） | 完成 |
 | 4 | faster-whisper 引擎 + transcriber 缓存 + 任务并发可配置 | 待办 |
 | 5 | React SPA（Copy for AI），跑通后删除 Jinja 页面 | 待办 |
 | 6 | B站字幕优先（拿不到再 ASR）+ b23.tv 短链 | 待办 |

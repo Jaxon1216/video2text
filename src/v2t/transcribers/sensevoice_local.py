@@ -46,9 +46,10 @@ class SenseVoiceSmallTranscriber(Transcriber):
             if item is not None
         ).strip()
 
+        # SenseVoice (without a VAD front-end) returns one text blob per file, so there are no timestamps.
         return {
             "text": text,
-            "segments": results,
+            "segments": [],
             "language": self.language,
             "model": str(self.model_dir),
         }

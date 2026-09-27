@@ -72,3 +72,29 @@ def test_volcengine_flash_uses_legacy_app_key_as_user_uid(tmp_path, monkeypatch)
     assert calls[0]["headers"]["X-Api-App-Key"] == "legacy-app"
     assert calls[0]["headers"]["X-Api-Access-Key"] == "access-token"
     assert calls[0]["json"]["user"]["uid"] == "legacy-app"
+
+
+def test_volcengine_flash_normalizes_utterance_timestamps(tmp_path, monkeypatch) -> None:
+    audio_path = tmp_path / "sample.wav"
+    audio_path.write_bytes(b"audio")
+
+    class TimedResponse(FakeResponse):
+        def json(self) -> dict[str, Any]:
+            return {
+                "result": {
+                    "text": "你好世界",
+                    "utterances": [
+                        {"text": "你好", "start_time": 0, "end_time": 1500},
+                        {"text": "世界", "start_time": 1500, "end_time": 2750},
+                    ],
+                }
+            }
+
+    monkeypatch.setitem(sys.modules, "requests", SimpleNamespace(post=lambda url, **kwargs: TimedResponse()))
+
+    result = VolcengineFlashTranscriber(api_key="key").transcribe(audio_path)
+
+    assert result["segments"] == [
+        {"start": 0.0, "end": 1.5, "text": "你好"},
+        {"start": 1.5, "end": 2.75, "text": "世界"},
+    ]

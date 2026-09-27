@@ -275,7 +275,63 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
 
 `GET /api/videos/{video_id}/transcript?version_id=2`
 
-### 4. 查询视频元数据
+### 4. 查询转写文档（前端详情页主接口）
+
+`GET /api/videos/{video_id}/document`
+
+一次返回展示与导出需要的全部信息：
+
+```json
+{
+  "video_id": 1,
+  "title": "线程池到底是怎么工作的",
+  "platform": "douyin",
+  "url": "https://www.douyin.com/video/7671185082790530347",
+  "uploader": "蜡笔小浩",
+  "duration": 288.021,
+  "engine": "whisper",
+  "model": "small",
+  "transcript_source": "asr",
+  "version_kind": "original",
+  "text": "...",
+  "segments": [{"start": 0.0, "end": 2.84, "text": "..."}],
+  "has_timestamps": true
+}
+```
+
+- `segments` 单位为秒；当前版本是编辑过的（`version_kind=edited`）或引擎不提供时间戳（SenseVoice）时为空数组。
+- `url` 优先使用平台规范链接（例如抖音短链会被换成 `www.douyin.com/video/{id}`）。
+
+### 5. 查询时间戳 segments
+
+`GET /api/videos/{video_id}/segments`
+
+```json
+{
+  "video_id": 1,
+  "has_timestamps": true,
+  "version_kind": "original",
+  "transcript_source": "asr",
+  "segments": [{"start": 0.0, "end": 2.84, "text": "..."}]
+}
+```
+
+### 6. 导出
+
+`GET /api/videos/{video_id}/export?format=txt|plain|md|srt`
+
+以附件形式返回（`Content-Disposition: attachment; filename*=UTF-8''<标题>.<扩展名>`）：
+
+| format | 内容 |
+| --- | --- |
+| `txt`（默认） | 带时间戳的文字稿，短 segment 约 30 秒合并为一段：`[00:35] ...`；没有时间戳时退化为纯文本 |
+| `plain` | 纯文本 |
+| `md` | 标题 + 平台/链接/作者/时长/引擎 + 带时间戳的文字稿 |
+| `srt` | 字幕文件，使用原始 segment；没有时间戳时返回 400 |
+
+不支持的格式返回 400，视频不存在返回 404。
+
+### 7. 查询视频元数据
 
 `GET /api/videos/{video_id}/metadata`
 

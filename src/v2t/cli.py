@@ -13,8 +13,9 @@ from v2t.cli_progress import TqdmTaskRenderer
 from v2t.config import Settings
 from v2t.database import AppDatabase
 from v2t.factory import build_pipeline
+from v2t.formatters import EXPORT_FORMATS, export_document
 from v2t.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, dependency_sync_guidance, resolve_language, tr
-from v2t.inputs import parse_source_list
+from v2t.inputs import parse_source_list, safe_stem
 from v2t.library import WorkspaceLibrary
 from v2t.tasks import TaskService
 from v2t.user_config import AppConfig
@@ -48,10 +49,13 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         model: str | None = typer.Option(None, "--model", help=tr(language, "opt_model_help")),
         prompt: str = typer.Option("", "--prompt", help=tr(language, "opt_prompt_help")),
         output: Path | None = typer.Option(None, "--output", help=tr(language, "opt_output_help")),
+        export_format: str | None = typer.Option(None, "--format", help=tr(language, "opt_format_help")),
         workspace: Path | None = typer.Option(None, "--workspace", help=tr(language, "opt_workspace_help")),
     ) -> None:
         """Download or open media, then transcribe it with the selected provider."""
         try:
+            if export_format and export_format.lower() not in EXPORT_FORMATS:
+                raise ValueError(f"unsupported export format: {export_format} (choose from {', '.join(EXPORT_FORMATS)})")
             settings, config = _load_runtime(workspace=workspace, provider=provider, model=model)
             renderer = TqdmTaskRenderer(config.language)
             service = _build_task_service(
@@ -75,6 +79,9 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
             if video is None:
                 raise RuntimeError(f"video record not found: {task.video_id}")
             transcript = service.library.load_active_transcript(task.video_id)
+            export_path = (
+                _write_export(service.library, settings, task.video_id, export_format) if export_format else None
+            )
         except Exception as exc:
             message = tr(_detect_preferred_language(workspace), "error_prefix", message=exc)
             typer.secho(message, err=True, fg=typer.colors.RED)
@@ -82,6 +89,27 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
 
         typer.echo(tr(config.language, "transcript_saved", path=transcript["file_path"]))
         typer.echo(tr(config.language, "metadata_saved", path=video["metadata_path"]))
+        if export_path is not None:
+            typer.echo(tr(config.language, "export_saved", path=export_path))
+
+    @app.command("export", help=tr(language, "cmd_export_help"))
+    def export_command(
+        video_id: int = typer.Argument(..., help=tr(language, "arg_video_id_help")),
+        export_format: str = typer.Option("txt", "--format", help=tr(language, "opt_format_help")),
+        output: Path | None = typer.Option(None, "--output", help=tr(language, "opt_output_help")),
+        workspace: Path | None = typer.Option(None, "--workspace", help=tr(language, "opt_workspace_help")),
+    ) -> None:
+        """Render an existing transcript as txt / plain / md / srt."""
+        selected_language = _detect_preferred_language(workspace)
+        try:
+            settings = Settings.from_workspace(workspace)
+            database = AppDatabase(settings)
+            library = WorkspaceLibrary(settings, database)
+            path = _write_export(library, settings, video_id, export_format, output=output)
+        except Exception as exc:
+            typer.secho(tr(selected_language, "error_prefix", message=exc), err=True, fg=typer.colors.RED)
+            raise typer.Exit(code=1) from exc
+        typer.echo(tr(selected_language, "export_saved", path=path))
 
     @app.command("batch", help=tr(language, "cmd_batch_help"))
     def batch_transcribe(
@@ -338,6 +366,22 @@ def _build_task_service(
     )
     service.ensure_indexed()
     return service
+
+
+def _write_export(
+    library: WorkspaceLibrary,
+    settings: Settings,
+    video_id: int,
+    export_format: str,
+    *,
+    output: Path | None = None,
+) -> Path:
+    document = library.load_document(video_id)
+    exported = export_document(document, export_format)
+    target = output.expanduser() if output else settings.exports_dir / f"{safe_stem(document.title)}-{video_id}.{exported.extension}"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(exported.content, encoding="utf-8")
+    return target
 
 
 def _collect_batch_sources(sources: list[str], source_file: Path | None) -> list[str]:

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from v2t.i18n import dependency_sync_guidance
+from v2t.segments import normalize_segments
 from v2t.transcribers.base import Transcriber
 
 # 极速版API：同步返回，支持base64音频
@@ -118,7 +119,7 @@ class VolcengineFlashTranscriber(Transcriber):
 
         return {
             "text": text,
-            "segments": utterances,
+            "segments": normalize_segments(utterances, start_key="start_time", end_key="end_time", scale=0.001),
             "language": None,
             "model": self.model_name,
             "raw_response": data,

@@ -17,6 +17,7 @@ class Settings:
     transcripts_original_dir: Path
     transcripts_edited_dir: Path
     metadata_dir: Path
+    exports_dir: Path
     tasks_dir: Path
     config_path: Path
     app_db_path: Path
@@ -32,6 +33,7 @@ class Settings:
             transcripts_original_dir=root / "transcripts" / "original",
             transcripts_edited_dir=root / "transcripts" / "edited",
             metadata_dir=root / "metadata",
+            exports_dir=root / "exports",
             tasks_dir=root / "tasks",
             config_path=root / "config.json",
             app_db_path=root / "app.db",
@@ -46,6 +48,7 @@ class Settings:
             self.transcripts_original_dir,
             self.transcripts_edited_dir,
             self.metadata_dir,
+            self.exports_dir,
             self.tasks_dir,
         ):
             directory.mkdir(parents=True, exist_ok=True)

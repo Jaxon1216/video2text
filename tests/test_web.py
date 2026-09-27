@@ -292,3 +292,58 @@ def test_api_exposes_task_filters_and_video_metadata(tmp_path: Path) -> None:
     metadata = client.get(f"/api/videos/{task.video_id}/metadata")
     assert metadata.status_code == 200
     assert metadata.json()["engine"] == "sensevoice"
+
+
+class FakePipelineWithSegments(FakePipeline):
+    def transcribe(self, source: str, *, prompt: str | None = None, output: Path | None = None, progress=None) -> TranscriptResult:
+        result = super().transcribe(source, prompt=prompt, output=output, progress=progress)
+        result.metadata = {
+            **result.metadata,
+            "source": {"kind": "bilibili", "url": source, "webpage_url": "https://www.bilibili.com/video/BV1xx411c7XD"},
+            "download": {"title": "Demo Title", "uploader": "UP主", "duration": 42.0},
+            "transcript_source": "asr",
+            "segments": [
+                {"start": 0.0, "end": 3.0, "text": "demo"},
+                {"start": 31.0, "end": 33.0, "text": "text"},
+            ],
+        }
+        return result
+
+
+def test_api_document_segments_and_export(tmp_path: Path) -> None:
+    app, service, _, _ = build_test_app(tmp_path)
+    service.pipeline_factory = lambda provider, model: FakePipelineWithSegments(service.library.settings, provider, model)
+    client = TestClient(app)
+
+    task_id = client.post(
+        "/api/tasks/transcribe",
+        json={"source": "https://www.bilibili.com/video/BV1xx411c7XD", "provider": "whisper", "model": "small"},
+    ).json()["task_id"]
+    video_id = service.wait_for_task(task_id).video_id
+
+    document = client.get(f"/api/videos/{video_id}/document").json()
+    assert document["title"] == "Demo Title"
+    assert document["uploader"] == "UP主"
+    assert document["url"] == "https://www.bilibili.com/video/BV1xx411c7XD"
+    assert document["has_timestamps"] is True
+
+    segments = client.get(f"/api/videos/{video_id}/segments").json()
+    assert segments["version_kind"] == "original"
+    assert len(segments["segments"]) == 2
+
+    txt = client.get(f"/api/videos/{video_id}/export?format=txt")
+    assert txt.status_code == 200
+    assert txt.text == "[00:00] demo\n\n[00:31] text\n"
+    assert "filename*=UTF-8''Demo-Title.txt" in txt.headers["content-disposition"]
+
+    srt = client.get(f"/api/videos/{video_id}/export?format=srt")
+    assert srt.headers["content-type"].startswith("application/x-subrip")
+
+    assert client.get(f"/api/videos/{video_id}/export?format=docx").status_code == 400
+    assert client.get("/api/videos/999/export").status_code == 404
+
+    client.put(f"/api/videos/{video_id}/transcript", json={"text": "edited text"})
+    edited = client.get(f"/api/videos/{video_id}/segments").json()
+    assert edited == {**edited, "has_timestamps": False, "version_kind": "edited", "segments": []}
+    assert client.get(f"/api/videos/{video_id}/export?format=txt").text == "edited text\n"
+    assert client.get(f"/api/videos/{video_id}/export?format=srt").status_code == 400

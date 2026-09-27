@@ -46,6 +46,28 @@ class TranscriptResult:
 
 
 @dataclass(slots=True)
+class TranscriptDocument:
+    """Everything an exporter (or a future summarizer / chat feature) needs about one transcript."""
+
+    video_id: int
+    title: str
+    platform: str
+    url: str | None
+    uploader: str | None
+    duration: float | None
+    engine: str
+    model: str
+    transcript_source: str
+    version_kind: str
+    text: str
+    segments: list[dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def has_timestamps(self) -> bool:
+        return bool(self.segments)
+
+
+@dataclass(slots=True)
 class ProgressSnapshot:
     task_id: str
     status: TaskStatus

@@ -8,7 +8,7 @@ from pathlib import Path
 from v2t.config import Settings
 from v2t.database import AppDatabase
 from v2t.inputs import safe_stem
-from v2t.models import TranscriptResult
+from v2t.models import TranscriptDocument, TranscriptResult
 
 
 def sha256_text(text: str) -> str:
@@ -94,6 +94,32 @@ class WorkspaceLibrary:
             raise RuntimeError(f"video not found: {video_id}")
         metadata_path = Path(str(video["metadata_path"]))
         return json.loads(metadata_path.read_text(encoding="utf-8"))
+
+    def load_document(self, video_id: int) -> TranscriptDocument:
+        video = self.database.get_video(video_id)
+        if video is None:
+            raise RuntimeError(f"video not found: {video_id}")
+        metadata = self.load_video_metadata(video_id)
+        transcript = self.load_active_transcript(video_id)
+        source = metadata.get("source") or {}
+        download = metadata.get("download") or {}
+        version_kind = str(transcript["kind"])
+        # Edited text no longer lines up with the ASR timings, so only the original version keeps timestamps.
+        segments = list(metadata.get("segments") or []) if version_kind == "original" else []
+        return TranscriptDocument(
+            video_id=video_id,
+            title=str(video["title"]),
+            platform=str(video["source_kind"]),
+            url=source.get("webpage_url") or download.get("webpage_url") or source.get("url"),
+            uploader=download.get("uploader"),
+            duration=download.get("duration"),
+            engine=str(video["engine"]),
+            model=str(video["model"]),
+            transcript_source=str(metadata.get("transcript_source") or "asr"),
+            version_kind=version_kind,
+            text=str(transcript["text"]),
+            segments=segments,
+        )
 
     def index_existing_workspace(self) -> None:
         self.settings.ensure_directories()

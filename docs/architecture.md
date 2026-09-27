@@ -24,16 +24,19 @@ flowchart LR
 1. `inputs.parse_source(raw)` 把输入解析为 `SourceRef(kind=bilibili|douyin|video|audio, ...)`。
 2. 远程来源（bilibili / douyin）交给 `factory` 按 `kind` 选出的 Downloader，得到 `DownloadResult(video_path, title, metadata)`。`video_path` 可以是视频也可以是纯音频文件。
 3. `pipeline._extract_audio` 用 ffmpeg 转成 16kHz 单声道 wav（本地音频文件跳过这一步）。
-4. `Transcriber.transcribe(audio_path, prompt, progress)` 返回 `{"text", "segments", "language", "model", ...}`。
-5. pipeline 写出 `transcripts/original/<stem>-<时间>.txt` 和 `metadata/<stem>-<时间>.json`。
+4. `Transcriber.transcribe(audio_path, prompt, progress)` 返回 `{"text", "segments", "language", "model", ...}`，其中 `segments` 已归一化为 `[{start, end, text}]`（秒，见 `segments.py`）。
+5. pipeline 写出 `transcripts/original/<stem>-<时间>.txt`（纯文本）和 `metadata/<stem>-<时间>.json`（来源、下载信息、`transcript_source`、`segments`）。
 6. `library.register_transcript_result` 在 SQLite 里登记 video 和当前转写稿版本。
+7. 展示与导出时，`library.load_document(video_id)` 组装 `TranscriptDocument`（元数据 + 当前文本 + segments），交给 `formatters.export_document` 渲染成 txt / plain / md / srt。编辑过的版本不带时间戳。
 
 ## 模块职责
 
 | 模块 | 职责 |
 | --- | --- |
 | `inputs.py` | 输入识别：本地文件后缀、B站 BV / 链接、抖音分享文本与链接 |
-| `models.py` | 纯数据类，无业务逻辑 |
+| `models.py` | 纯数据类，无业务逻辑；`TranscriptDocument` 是导出和以后 AI 功能的统一输入 |
+| `segments.py` | segment 结构与各引擎输出的归一化 |
+| `formatters.py` | 纯函数：时间戳格式化、按 30 秒合并段落、txt / md / srt 渲染 |
 | `downloaders/` | `Downloader.download(source, settings, progress) -> DownloadResult` |
 | `transcribers/` | `Transcriber.transcribe(audio_path, prompt, progress) -> dict` |
 | `factory.py` | 组装 pipeline：provider -> Transcriber，kind -> Downloader |
@@ -57,7 +60,8 @@ flowchart LR
   audio/               ffmpeg 输出的 16k wav
   transcripts/original 原始转写稿
   transcripts/edited   Web 上编辑后另存的版本
-  metadata/            每次转写的 metadata json（来源、引擎、下载信息）
+  metadata/            每次转写的 metadata json（来源、引擎、下载信息、segments）
+  exports/             CLI 导出的 txt / md / srt
   browser/             抖音解析用的持久化浏览器目录
 ```
 

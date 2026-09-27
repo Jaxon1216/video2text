@@ -25,6 +25,7 @@ uv run pytest -q                                       # 跑测试（也可 .ven
 uv run video2text tx "<B站链接 / 抖音分享文本 / 本地文件>"
 uv run video2text ui                                    # 启动 Web，默认 http://127.0.0.1:8000
 uv run video2text doctor                                # 检查依赖
+uv run video2text export <视频ID> --format md            # 导出 txt / plain / md / srt
 ```
 
 ## 目录地图
@@ -33,9 +34,11 @@ uv run video2text doctor                                # 检查依赖
 src/v2t/
   cli.py            CLI 入口（transcribe/batch/web/server/doctor/bootstrap/language）
   inputs.py         输入解析：本地文件 / B站 / 抖音分享文本 -> SourceRef
-  models.py         数据类：SourceRef、DownloadResult、TranscriptResult、TaskRecord...
+  models.py         数据类：SourceRef、DownloadResult、TranscriptResult、TranscriptDocument、TaskRecord...
   factory.py        按 provider 组装 Transcriber，按 source.kind 选择 Downloader
-  pipeline.py       核心流程：下载 -> ffmpeg 抽 16k wav -> 转写 -> 写 txt + metadata json
+  pipeline.py       核心流程：下载 -> ffmpeg 抽 16k wav -> 转写 -> 写 txt + metadata json（含 segments）
+  segments.py       segment 结构 {start, end, text}（秒）与归一化
+  formatters.py     导出渲染：带时间戳 txt / plain / md / srt
   downloaders/      ytdlp.py（B站）、douyin.py（抖音）
   transcribers/     whisper_local.py、sensevoice_local.py、volcengine.py
   tasks.py          线程池任务服务 + 进度回调
@@ -54,7 +57,7 @@ docs/               架构、路线图、决策、平台说明、API
 
 - **分层边界**：Downloader 只负责"拿到媒体文件 + 元数据"；Transcriber 只负责"音频 -> 文本/segments"；流程编排只在 `pipeline.py`；CLI / Web 只是外壳，不复制业务逻辑。
 - **新增平台**：在 `models.SourceKind` 加类型 → `inputs.py` 识别 → `downloaders/` 新建实现 → `factory.py` 注册。不要在 pipeline 里写平台特判。
-- **新增 ASR**：`transcribers/` 新建实现 → `factory.py` + `user_config.py` 注册 → `bootstrap.py` / `doctor` 接入。
+- **新增 ASR**：`transcribers/` 新建实现，返回的 `segments` 必须用 `normalize_segments` 归一化 → `factory.py` + `user_config.py` 注册 → `bootstrap.py` / `doctor` 接入。
 - **测试不访问网络**：下载器、云 ASR、浏览器一律 mock；真实链接只用于手动端到端验证。
 - **保持简单**：不引入 Redis、消息队列、复杂数据库、登录权限等；SQLite + 线程池足够。确需引入必须先在 `docs/decisions.md` 记录理由。
 - **抖音**：不逆向 `a_bogus` 等签名算法；走 Playwright 浏览器截获（见 `docs/platforms/douyin.md`）。

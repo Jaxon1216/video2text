@@ -2,17 +2,19 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from v2t.database import AppDatabase
+from v2t.formatters import export_document
 from v2t.i18n import tr
-from v2t.inputs import parse_source_list
+from v2t.inputs import parse_source_list, safe_stem
 from v2t.library import WorkspaceLibrary
-from v2t.models import TaskRecord
+from v2t.models import TaskRecord, TranscriptDocument
 from v2t.tasks import TaskService
 
 
@@ -307,6 +309,43 @@ def create_app(
         if version_id is None:
             return JSONResponse(library.load_active_transcript(video_id))
         return JSONResponse(library.load_transcript_version(video_id, version_id))
+
+    def load_document_or_404(video_id: int) -> TranscriptDocument:
+        if database.get_video(video_id) is None:
+            raise HTTPException(status_code=404, detail="video not found")
+        return library.load_document(video_id)
+
+    @app.get("/api/videos/{video_id}/document")
+    async def get_video_document(video_id: int) -> JSONResponse:
+        document = load_document_or_404(video_id)
+        return JSONResponse({**asdict(document), "has_timestamps": document.has_timestamps})
+
+    @app.get("/api/videos/{video_id}/segments")
+    async def get_video_segments(video_id: int) -> JSONResponse:
+        document = load_document_or_404(video_id)
+        return JSONResponse(
+            {
+                "video_id": video_id,
+                "has_timestamps": document.has_timestamps,
+                "version_kind": document.version_kind,
+                "transcript_source": document.transcript_source,
+                "segments": document.segments,
+            }
+        )
+
+    @app.get("/api/videos/{video_id}/export")
+    async def export_video(video_id: int, format: str = Query("txt")) -> Response:
+        document = load_document_or_404(video_id)
+        try:
+            exported = export_document(document, format)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        filename = f"{safe_stem(document.title)}.{exported.extension}"
+        return Response(
+            content=exported.content,
+            media_type=f"{exported.media_type}; charset=utf-8",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+        )
 
     @app.get("/api/videos/{video_id}/metadata")
     async def get_video_metadata(video_id: int) -> JSONResponse:

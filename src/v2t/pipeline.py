@@ -93,6 +93,8 @@ class V2TPipeline:
             "download": downloaded.metadata if downloaded else None,
             "language": transcription.get("language"),
             "generated_at": datetime.now().isoformat(),
+            "transcript_source": "asr",
+            "segments": list(transcription.get("segments") or []),
         }
         metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
 

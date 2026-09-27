@@ -8,6 +8,7 @@ from typing import Any
 
 from v2t.i18n import dependency_sync_guidance
 from v2t.progress import ProgressReporter
+from v2t.segments import normalize_segments
 from v2t.transcribers.base import Transcriber
 
 
@@ -41,7 +42,7 @@ class LocalWhisperTranscriber(Transcriber):
         text = (result.get("text") or "").strip()
         return {
             "text": text,
-            "segments": result.get("segments", []),
+            "segments": normalize_segments(result.get("segments")),
             "language": result.get("language"),
             "device": self.device,
             "model": self.model_name,
