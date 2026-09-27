@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-from b2t.progress import ProgressReporter
+from v2t.progress import ProgressReporter
 
 
 class Transcriber(ABC):

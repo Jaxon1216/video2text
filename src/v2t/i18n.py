@@ -13,7 +13,7 @@ SUPPORTED_LANGUAGES = {
 MESSAGES: dict[str, dict[str, str]] = {
     "zh-CN": {
         # ── CLI help ─────────────────────────────────────────
-        "app_help": "把 Bilibili 视频变成文字的命令行工具。",
+        "app_help": "把 B站 / 抖音视频转成带时间戳的文字稿，方便交给 AI 继续提问。",
         "show_version": "显示版本号。",
         "cmd_transcribe_help": "转写视频或音频（缩写: tx）。",
         "cmd_batch_help": "批量转写多条输入，每行一个 BV、B站/抖音链接或本地文件。",
@@ -28,7 +28,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "opt_model_help": "模型名称。",
         "opt_prompt_help": "转写提示词（可选）。",
         "opt_output_help": "输出文件或目录。",
-        "opt_workspace_help": "工作目录，默认 ./.b2t。",
+        "opt_workspace_help": "工作目录，默认 ./.v2t。",
         "opt_host_help": "监听地址。",
         "opt_port_help": "监听端口。",
         "opt_language_help": "语言代码，如 zh-CN、en-US。",
@@ -36,7 +36,7 @@ MESSAGES: dict[str, dict[str, str]] = {
 
         # ── Runtime messages ─────────────────────────────────
         "missing_dependency": "缺少依赖 '{name}'。{guidance}",
-        "dependency_sync_guidance": "请把所有需要的 extras 写在同一条命令里，例如 `uv sync --extra whisper --extra web`；如果之前跑过 Bootstrap，直接 `uv run bili2text bootstrap --sync-only` 也行。",
+        "dependency_sync_guidance": "请把所有需要的 extras 写在同一条命令里，例如 `uv sync --extra whisper --extra web`；如果之前跑过 Bootstrap，直接 `uv run video2text bootstrap --sync-only` 也行。",
         "transcript_saved": "转写结果已保存: {path}",
         "metadata_saved": "元数据已保存: {path}",
         "error_prefix": "出错了: {message}",
@@ -56,7 +56,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "status_missing": "✗ 缺失",
 
         # ── Bootstrap ────────────────────────────────────────
-        "bootstrap_title": "bili2text 初始化向导",
+        "bootstrap_title": "video2text 初始化向导",
         "bootstrap_intro": "欢迎！接下来帮你选好语言和转写引擎，几步就搞定。",
         "bootstrap_language_prompt": "选择界面语言",
         "bootstrap_providers_prompt": "选择要使用的转写引擎",
@@ -81,7 +81,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "bootstrap_volc_itn_prompt": "启用逆文本正则化",
         "bootstrap_saved": "配置已保存到 {path}",
         "bootstrap_auto_start": "还没有配置文件，来走一下初始化向导吧……",
-        "bootstrap_finish": "搞定！随时可以用 `bili2text bootstrap` 重新配置，或 `bili2text lang <代码>` 切换语言。",
+        "bootstrap_finish": "搞定！随时可以用 `video2text bootstrap` 重新配置，或 `video2text lang <代码>` 切换语言。",
 
         # ── Bootstrap: reconfigure flow ──────────────────────
         "bootstrap_current_title": "当前配置",
@@ -129,8 +129,8 @@ MESSAGES: dict[str, dict[str, str]] = {
 
 
         # ── Web ──────────────────────────────────────────────
-        "web_title": "bili2text",
-        "web_subtitle": "Bilibili 视频转文字",
+        "web_title": "video2text",
+        "web_subtitle": "B站 / 抖音视频转文字",
         "web_error": "出错了",
         "web_form_title": "开始转写",
         "web_source": "B站 / 抖音链接或分享文本 / 本地路径（可多行）",
@@ -173,12 +173,12 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "en-US": {
         # ── CLI help ─────────────────────────────────────────
-        "app_help": "Turn Bilibili videos into text, right from the command line.",
+        "app_help": "Turn Bilibili / Douyin videos into timestamped transcripts ready for AI.",
         "show_version": "Show version.",
         "cmd_transcribe_help": "Transcribe a video or audio file (alias: tx).",
         "cmd_batch_help": "Batch transcribe multiple inputs, one BV, Bilibili/Douyin URL, or local file per line.",
         "cmd_doctor_help": "Check runtime dependencies (alias: diag).",
-        "cmd_bootstrap_help": "Set up or reconfigure bili2text (alias: init).",
+        "cmd_bootstrap_help": "Set up or reconfigure video2text (alias: init).",
         "cmd_web_help": "Launch the web UI (alias: ui).",
         "cmd_server_help": "Start server mode for Docker / LAN (alias: srv).",
         "cmd_language_help": "Switch the interface language (alias: lang).",
@@ -188,7 +188,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "opt_model_help": "Model name.",
         "opt_prompt_help": "Optional transcription prompt.",
         "opt_output_help": "Output file or directory.",
-        "opt_workspace_help": "Workspace root, defaults to ./.b2t.",
+        "opt_workspace_help": "Workspace root, defaults to ./.v2t.",
         "opt_host_help": "Bind address.",
         "opt_port_help": "Bind port.",
         "opt_language_help": "Language code, e.g. zh-CN or en-US.",
@@ -196,7 +196,7 @@ MESSAGES: dict[str, dict[str, str]] = {
 
         # ── Runtime messages ─────────────────────────────────
         "missing_dependency": "Missing dependency '{name}'. {guidance}",
-        "dependency_sync_guidance": "Put all the extras you need in one command, e.g. `uv sync --extra whisper --extra web`. Or just run `uv run bili2text bootstrap --sync-only` if you've already been through the setup.",
+        "dependency_sync_guidance": "Put all the extras you need in one command, e.g. `uv sync --extra whisper --extra web`. Or just run `uv run video2text bootstrap --sync-only` if you've already been through the setup.",
         "transcript_saved": "Transcript saved: {path}",
         "metadata_saved": "Metadata saved: {path}",
         "error_prefix": "Error: {message}",
@@ -216,7 +216,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "status_missing": "✗ missing",
 
         # ── Bootstrap ────────────────────────────────────────
-        "bootstrap_title": "bili2text setup",
+        "bootstrap_title": "video2text setup",
         "bootstrap_intro": "Welcome! Let's get your language and transcription engine sorted out — it'll only take a minute.",
         "bootstrap_language_prompt": "Pick a language",
         "bootstrap_providers_prompt": "Which transcription engines do you want?",
@@ -241,7 +241,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "bootstrap_volc_itn_prompt": "Turn on inverse text normalization",
         "bootstrap_saved": "Config saved to {path}",
         "bootstrap_auto_start": "No config file found — let's get you set up...",
-        "bootstrap_finish": "You're all set! Run `bili2text bootstrap` anytime to reconfigure, or `bili2text lang <code>` to switch languages.",
+        "bootstrap_finish": "You're all set! Run `video2text bootstrap` anytime to reconfigure, or `video2text lang <code>` to switch languages.",
 
         # ── Bootstrap: reconfigure flow ──────────────────────
         "bootstrap_current_title": "Current config",
@@ -289,8 +289,8 @@ MESSAGES: dict[str, dict[str, str]] = {
 
 
         # ── Web ──────────────────────────────────────────────
-        "web_title": "bili2text",
-        "web_subtitle": "Bilibili video to text",
+        "web_title": "video2text",
+        "web_subtitle": "Bilibili / Douyin video to text",
         "web_error": "Error",
         "web_form_title": "Transcribe",
         "web_source": "Bilibili / Douyin URL or share text / local path (one per line)",

@@ -4,9 +4,9 @@ import os
 from pathlib import Path
 from typing import Any
 
-from b2t.config import Settings
-from b2t.downloaders.base import Downloader
-from b2t.models import DownloadResult, SourceRef
+from v2t.config import Settings
+from v2t.downloaders.base import Downloader
+from v2t.models import DownloadResult, SourceRef
 
 
 class YtDlpDownloader(Downloader):
@@ -86,8 +86,8 @@ class YtDlpDownloader(Downloader):
         }
 
         # Support cookies for authenticated access to Bilibili.
-        # Priority: B2T_COOKIE_FILE env var > cookies.txt in workspace.
-        cookie_file = os.getenv("B2T_COOKIE_FILE")
+        # Priority: V2T_COOKIE_FILE env var > cookies.txt in workspace.
+        cookie_file = os.getenv("V2T_COOKIE_FILE")
         if cookie_file:
             cookie_path = Path(cookie_file).expanduser()
         else:
@@ -97,8 +97,8 @@ class YtDlpDownloader(Downloader):
 
         # Bilibili's CDN frequently blocks proxy/VPN nodes, causing 412
         # or SSL errors. Direct connections usually work better.
-        # Set B2T_USE_PROXY=1 to re-enable the system proxy if needed.
-        use_proxy = os.getenv("B2T_USE_PROXY", "").strip().lower() in {"1", "true", "yes", "on"}
+        # Set V2T_USE_PROXY=1 to re-enable the system proxy if needed.
+        use_proxy = os.getenv("V2T_USE_PROXY", "").strip().lower() in {"1", "true", "yes", "on"}
         if not use_proxy:
             ydl_opts["proxy"] = ""
 

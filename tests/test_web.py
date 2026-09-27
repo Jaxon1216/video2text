@@ -3,12 +3,12 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from b2t.config import Settings
-from b2t.database import AppDatabase
-from b2t.library import WorkspaceLibrary
-from b2t.models import SourceRef, TranscriptResult
-from b2t.tasks import TaskService
-from b2t.web import create_app
+from v2t.config import Settings
+from v2t.database import AppDatabase
+from v2t.library import WorkspaceLibrary
+from v2t.models import SourceRef, TranscriptResult
+from v2t.tasks import TaskService
+from v2t.web import create_app
 
 
 class FakePipeline:
@@ -39,7 +39,7 @@ class FakePipeline:
 
 
 def build_test_app(tmp_path: Path):
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     database = AppDatabase(settings)
     library = WorkspaceLibrary(settings, database)
     service = TaskService(
@@ -64,7 +64,7 @@ def test_index_page_renders_form_and_video_list(tmp_path: Path) -> None:
 
     response = client.get("/")
     assert response.status_code == 200
-    assert "Bilibili 视频转文字" in response.text
+    assert "B站 / 抖音视频转文字" in response.text
     assert 'value="sensevoice"' in response.text
     assert "Videos" in response.text
 

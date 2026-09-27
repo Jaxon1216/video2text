@@ -7,17 +7,17 @@ from pathlib import Path
 
 import typer
 
-from b2t import __version__
-from b2t.bootstrap import ensure_bootstrap, run_bootstrap
-from b2t.cli_progress import TqdmTaskRenderer
-from b2t.config import Settings
-from b2t.database import AppDatabase
-from b2t.factory import build_pipeline
-from b2t.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, dependency_sync_guidance, resolve_language, tr
-from b2t.inputs import parse_source_list
-from b2t.library import WorkspaceLibrary
-from b2t.tasks import TaskService
-from b2t.user_config import AppConfig
+from v2t import __version__
+from v2t.bootstrap import ensure_bootstrap, run_bootstrap
+from v2t.cli_progress import TqdmTaskRenderer
+from v2t.config import Settings
+from v2t.database import AppDatabase
+from v2t.factory import build_pipeline
+from v2t.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, dependency_sync_guidance, resolve_language, tr
+from v2t.inputs import parse_source_list
+from v2t.library import WorkspaceLibrary
+from v2t.tasks import TaskService
+from v2t.user_config import AppConfig
 
 
 def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
@@ -199,7 +199,7 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         workspace: Path | None = typer.Option(None, "--workspace", help=tr(language, "opt_workspace_help")),
         sync_only: bool = typer.Option(False, "--sync-only", help=tr(language, "bootstrap_sync_only")),
     ) -> None:
-        """Create or update the local bili2text config."""
+        """Create or update the local video2text config."""
         settings = Settings.from_workspace(workspace)
         if sync_only and not settings.config_path.exists():
             typer.secho(tr(_detect_preferred_language(workspace), "bootstrap_sync_only_missing_config"), err=True, fg=typer.colors.RED)
@@ -252,7 +252,7 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
 
 
 def main() -> None:
-    create_app(_detect_preferred_language())(prog_name="bili2text")
+    create_app(_detect_preferred_language())(prog_name="video2text")
 
 
 def _load_runtime(
@@ -291,7 +291,7 @@ def _run_server(*, host: str, port: int, provider: str | None, model: str | None
         )
         raise typer.Exit(code=1) from exc
 
-    from b2t.web import create_app
+    from v2t.web import create_app
 
     settings, config = _load_runtime(workspace=workspace, provider=provider, model=model)
     service = _build_task_service(settings=settings, config=config, provider=provider, model=model)
@@ -307,7 +307,7 @@ def _run_server(*, host: str, port: int, provider: str | None, model: str | None
 
 
 def _detect_preferred_language(workspace: Path | None = None) -> str:
-    env_language = resolve_language(os.getenv("B2T_LANG"))
+    env_language = resolve_language(os.getenv("V2T_LANG"))
     if env_language:
         return env_language
 

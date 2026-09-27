@@ -1,5 +1,5 @@
-from b2t.progress import ProgressReporter
-from b2t.transcribers.whisper_local import (
+from v2t.progress import ProgressReporter
+from v2t.transcribers.whisper_local import (
     WhisperProgressTqdm,
     build_whisper_import_error_message,
 )

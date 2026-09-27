@@ -5,7 +5,7 @@
 ## 项目定位
 
 video2text：把 B站 / 抖音视频链接快速转成**带时间戳的文字稿**，方便直接复制给 ChatGPT / Claude 继续提问。
-个人自用项目，基于开源项目 bili2text 二次开发，不再回馈 upstream。优先"能用、简单"，不追求商业级完备。
+个人自用项目，基于开源项目 [bili2text](https://github.com/lanbinleo/bili2text) 二次开发，不再回馈 upstream。优先"能用、简单"，不追求商业级完备。
 
 ## 技术栈
 
@@ -22,15 +22,15 @@ video2text：把 B站 / 抖音视频链接快速转成**带时间戳的文字稿
 uv sync --extra whisper --extra web --extra douyin   # 安装依赖（按需组合 extras）
 uv run playwright install chromium                     # 抖音解析需要的浏览器（仅首次）
 uv run pytest -q                                       # 跑测试（也可 .venv/bin/python -m pytest -q）
-uv run bili2text tx "<B站链接 / 抖音分享文本 / 本地文件>"
-uv run bili2text ui                                    # 启动 Web，默认 http://127.0.0.1:8000
-uv run bili2text doctor                                # 检查依赖
+uv run video2text tx "<B站链接 / 抖音分享文本 / 本地文件>"
+uv run video2text ui                                    # 启动 Web，默认 http://127.0.0.1:8000
+uv run video2text doctor                                # 检查依赖
 ```
 
 ## 目录地图
 
 ```text
-src/b2t/
+src/v2t/
   cli.py            CLI 入口（transcribe/batch/web/server/doctor/bootstrap/language）
   inputs.py         输入解析：本地文件 / B站 / 抖音分享文本 -> SourceRef
   models.py         数据类：SourceRef、DownloadResult、TranscriptResult、TaskRecord...
@@ -43,7 +43,7 @@ src/b2t/
   library.py        把结果登记进视频库、管理转写稿版本
   database.py       SQLite：tasks / task_progress_events / videos / transcript_versions / tags / categories
   web.py            FastAPI：HTML 页面 + /api/*
-  user_config.py    .b2t/config.json 读写
+  user_config.py    .v2t/config.json 读写
   bootstrap.py      首次运行配置向导
   i18n.py           中英文文案
 tests/              pytest，网络全部 mock

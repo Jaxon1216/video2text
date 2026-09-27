@@ -2,11 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from b2t.config import Settings
-from b2t.downloaders.base import Downloader
-from b2t.models import DownloadResult, SourceRef
-from b2t.pipeline import B2TPipeline, _parse_ffmpeg_progress_seconds
-from b2t.transcribers.base import Transcriber
+from v2t.config import Settings
+from v2t.downloaders.base import Downloader
+from v2t.models import DownloadResult, SourceRef
+from v2t.pipeline import V2TPipeline, _parse_ffmpeg_progress_seconds
+from v2t.transcribers.base import Transcriber
 
 
 class FakeDownloader(Downloader):
@@ -30,13 +30,13 @@ class FakeTranscriber(Transcriber):
     def transcribe(self, audio_path: Path, *, prompt: str | None = None, progress=None) -> dict[str, str]:
         assert audio_path.exists()
         return {
-            "text": "hello from b2t",
+            "text": "hello from v2t",
             "language": "zh",
             "model": "small",
         }
 
 
-class PipelineUnderTest(B2TPipeline):
+class PipelineUnderTest(V2TPipeline):
     def _extract_audio(self, video_path: Path, stem: str, progress=None) -> Path:
         audio_path = self.settings.audio_dir / f"{stem}.wav"
         audio_path.parent.mkdir(parents=True, exist_ok=True)
@@ -45,7 +45,7 @@ class PipelineUnderTest(B2TPipeline):
 
 
 def test_pipeline_transcribes_bilibili_source(tmp_path: Path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     settings.ensure_directories()
     video_path = tmp_path / "video.mp4"
     video_path.write_bytes(b"video")
@@ -57,14 +57,14 @@ def test_pipeline_transcribes_bilibili_source(tmp_path: Path) -> None:
     )
 
     result = pipeline.transcribe("BV1xx411c7XD")
-    assert result.text == "hello from b2t"
+    assert result.text == "hello from v2t"
     assert result.transcript_path.exists()
     assert result.metadata_path.exists()
     assert result.video_path == video_path
 
 
 def test_pipeline_routes_douyin_source_to_douyin_downloader(tmp_path: Path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     settings.ensure_directories()
     audio_path = tmp_path / "douyin.m4a"
     audio_path.write_bytes(b"audio")
@@ -85,7 +85,7 @@ def test_pipeline_routes_douyin_source_to_douyin_downloader(tmp_path: Path) -> N
 
 
 def test_pipeline_rejects_remote_source_without_downloader(tmp_path: Path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     pipeline = PipelineUnderTest(
         settings=settings,
         downloaders={"bilibili": FakeDownloader(tmp_path / "unused.mp4")},
@@ -97,7 +97,7 @@ def test_pipeline_rejects_remote_source_without_downloader(tmp_path: Path) -> No
 
 
 def test_pipeline_respects_custom_output_file(tmp_path: Path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     settings.ensure_directories()
     audio_path = tmp_path / "input.wav"
     audio_path.write_bytes(b"wav")

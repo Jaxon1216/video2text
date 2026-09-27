@@ -4,8 +4,8 @@ from threading import Lock
 
 from tqdm import tqdm
 
-from b2t.i18n import tr
-from b2t.models import ProgressSnapshot
+from v2t.i18n import tr
+from v2t.models import ProgressSnapshot
 
 
 class TqdmTaskRenderer:

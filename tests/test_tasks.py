@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from b2t.config import Settings
-from b2t.database import AppDatabase
-from b2t.library import WorkspaceLibrary
-from b2t.models import SourceRef, TranscriptResult
-from b2t.tasks import TaskService
+from v2t.config import Settings
+from v2t.database import AppDatabase
+from v2t.library import WorkspaceLibrary
+from v2t.models import SourceRef, TranscriptResult
+from v2t.tasks import TaskService
 
 
 class FakePipeline:
@@ -34,7 +34,7 @@ class FakePipeline:
 
 
 def test_task_service_runs_background_transcription_and_indexes_result(tmp_path: Path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     database = AppDatabase(settings)
     library = WorkspaceLibrary(settings, database)
     service = TaskService(

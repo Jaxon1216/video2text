@@ -14,8 +14,8 @@
 
 | 环境变量 | 默认 | 作用 |
 | --- | --- | --- |
-| `B2T_COOKIE_FILE` | `<工作区>/cookies.txt` | Netscape 格式的 cookies.txt，遇到 HTTP 412 或需要登录时使用 |
-| `B2T_USE_PROXY` | 关 | B站 CDN 经常屏蔽代理节点，默认直连；设为 `1` 走系统代理 |
+| `V2T_COOKIE_FILE` | `<工作区>/cookies.txt` | Netscape 格式的 cookies.txt，遇到 HTTP 412 或需要登录时使用 |
+| `V2T_USE_PROXY` | 关 | B站 CDN 经常屏蔽代理节点，默认直连；设为 `1` 走系统代理 |
 
 ## 常见问题
 

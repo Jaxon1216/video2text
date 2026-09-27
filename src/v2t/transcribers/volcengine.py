@@ -5,8 +5,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from b2t.i18n import dependency_sync_guidance
-from b2t.transcribers.base import Transcriber
+from v2t.i18n import dependency_sync_guidance
+from v2t.transcribers.base import Transcriber
 
 # 极速版API：同步返回，支持base64音频
 FLASH_URL = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash"
@@ -51,7 +51,7 @@ class VolcengineFlashTranscriber(Transcriber):
 
         auth_headers = self._build_headers()
         if not auth_headers:
-            raise RuntimeError("Volcengine provider requires API credentials. Run `bili2text bootstrap` first.")
+            raise RuntimeError("Volcengine provider requires API credentials. Run `video2text bootstrap` first.")
 
         task_id = str(uuid.uuid4())
 

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from b2t import bootstrap as bootstrap_module
-from b2t.bootstrap import (
+from v2t import bootstrap as bootstrap_module
+from v2t.bootstrap import (
     build_uv_sync_command,
     collect_required_extras,
     run_bootstrap,
@@ -9,8 +9,8 @@ from b2t.bootstrap import (
     sync_selected_environment,
     uv_available,
 )
-from b2t.config import Settings
-from b2t.user_config import AppConfig
+from v2t.config import Settings
+from v2t.user_config import AppConfig
 
 
 def test_collect_required_extras_combines_providers_and_features() -> None:
@@ -105,7 +105,7 @@ def test_run_bootstrap_updates_default_model_when_whisper_becomes_default(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     existing = AppConfig(
         default_provider="volcengine",
         default_model="bigmodel",

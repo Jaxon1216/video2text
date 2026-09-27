@@ -1,4 +1,4 @@
-# bili2text API 文档
+# video2text API 文档
 
 这份文档面向前端或外部客户端，描述当前可用的后端接口。
 
@@ -8,7 +8,7 @@
 - 推荐启动方式:
 
 ```bash
-uv run bili2text web
+uv run video2text web
 ```
 
 - FastAPI 原生文档:
@@ -19,7 +19,7 @@ uv run bili2text web
 
 ### 本地文件是真实数据源
 
-转写文本、编辑后的版本、元数据 JSON、下载视频和音频都保存在 `.b2t` 本地目录中。
+转写文本、编辑后的版本、元数据 JSON、下载视频和音频都保存在 `.v2t` 本地目录中。
 
 SQLite 只负责索引和管理状态，不是唯一数据源。
 
@@ -131,7 +131,7 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
       "source_input": "https://www.bilibili.com/video/BV1xx411c7XD",
       "provider": "whisper",
       "model": "small",
-      "workspace_root": ".b2t",
+      "workspace_root": ".v2t",
       "progress_percent": 1.0,
       "current_stage": "completed",
       "current_message": "completed",
@@ -224,9 +224,9 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
       "language": "zh",
       "engine": "whisper",
       "model": "small",
-      "video_path": ".b2t/downloads/demo.mp4",
-      "audio_path": ".b2t/audio/demo.wav",
-      "metadata_path": ".b2t/metadata/demo.json",
+      "video_path": ".v2t/downloads/demo.mp4",
+      "audio_path": ".v2t/audio/demo.wav",
+      "metadata_path": ".v2t/metadata/demo.json",
       "current_transcript_version_id": 3,
       "category_id": 1,
       "category_name": "Research",
@@ -265,7 +265,7 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
 {
   "version_id": 3,
   "kind": "edited",
-  "file_path": ".b2t/transcripts/edited/demo-1-20260411-120000.txt",
+  "file_path": ".v2t/transcripts/edited/demo-1-20260411-120000.txt",
   "is_active": true,
   "text": "..."
 }
@@ -325,7 +325,7 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
       "id": 4,
       "video_id": 1,
       "kind": "edited",
-      "file_path": ".b2t/transcripts/edited/...",
+      "file_path": ".v2t/transcripts/edited/...",
       "text_sha256": "...",
       "char_count": 1234,
       "is_active": true,

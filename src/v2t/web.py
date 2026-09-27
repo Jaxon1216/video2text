@@ -8,12 +8,12 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from b2t.database import AppDatabase
-from b2t.i18n import tr
-from b2t.inputs import parse_source_list
-from b2t.library import WorkspaceLibrary
-from b2t.models import TaskRecord
-from b2t.tasks import TaskService
+from v2t.database import AppDatabase
+from v2t.i18n import tr
+from v2t.inputs import parse_source_list
+from v2t.library import WorkspaceLibrary
+from v2t.models import TaskRecord
+from v2t.tasks import TaskService
 
 
 class TranscribeTaskRequest(BaseModel):
@@ -55,7 +55,7 @@ def create_app(
     language: str = "zh-CN",
 ) -> FastAPI:
     templates = Jinja2Templates(directory=str(Path(__file__).with_name("templates")))
-    app = FastAPI(title="bili2text")
+    app = FastAPI(title="video2text")
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> HTMLResponse:

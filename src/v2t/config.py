@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-DEFAULT_WORKSPACE_NAME = ".b2t"
+DEFAULT_WORKSPACE_NAME = ".v2t"
 
 
 @dataclass(slots=True)
@@ -23,7 +23,7 @@ class Settings:
 
     @classmethod
     def from_workspace(cls, workspace: Path | None = None) -> "Settings":
-        root = workspace or Path(os.getenv("B2T_HOME", DEFAULT_WORKSPACE_NAME)).expanduser()
+        root = workspace or Path(os.getenv("V2T_HOME", DEFAULT_WORKSPACE_NAME)).expanduser()
         return cls(
             workspace_root=root,
             downloads_dir=root / "downloads",

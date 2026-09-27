@@ -7,15 +7,15 @@ from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
-from b2t.config import Settings
-from b2t.downloaders.base import Downloader
-from b2t.inputs import parse_source, safe_stem
-from b2t.models import REMOTE_SOURCE_KINDS, DownloadResult, TranscriptResult
-from b2t.progress import ProgressReporter
-from b2t.transcribers.base import Transcriber
+from v2t.config import Settings
+from v2t.downloaders.base import Downloader
+from v2t.inputs import parse_source, safe_stem
+from v2t.models import REMOTE_SOURCE_KINDS, DownloadResult, TranscriptResult
+from v2t.progress import ProgressReporter
+from v2t.transcribers.base import Transcriber
 
 
-class B2TPipeline:
+class V2TPipeline:
     def __init__(
         self,
         *,

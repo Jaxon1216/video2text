@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from b2t.config import Settings
-from b2t.downloaders import Downloader, DouyinDownloader, YtDlpDownloader
-from b2t.pipeline import B2TPipeline
-from b2t.transcribers import LocalWhisperTranscriber
-from b2t.user_config import AppConfig
+from v2t.config import Settings
+from v2t.downloaders import Downloader, DouyinDownloader, YtDlpDownloader
+from v2t.pipeline import V2TPipeline
+from v2t.transcribers import LocalWhisperTranscriber
+from v2t.user_config import AppConfig
 
 
 def build_pipeline(
@@ -15,25 +15,25 @@ def build_pipeline(
     config: AppConfig,
     provider: str | None = None,
     model: str | None = None,
-) -> B2TPipeline:
+) -> V2TPipeline:
     selected_provider = (provider or config.default_provider).strip().lower()
     selected_model = (model or config.default_model).strip()
 
     if selected_provider == "whisper":
         transcriber = LocalWhisperTranscriber(model=selected_model or "small")
     elif selected_provider == "sensevoice":
-        from b2t.transcribers.sensevoice_local import SenseVoiceSmallTranscriber
+        from v2t.transcribers.sensevoice_local import SenseVoiceSmallTranscriber
 
         model_dir_text = selected_model or config.sensevoice.model_dir
         if not model_dir_text:
-            raise RuntimeError("SenseVoice provider requires a local model directory. Run `bili2text bootstrap` first.")
+            raise RuntimeError("SenseVoice provider requires a local model directory. Run `video2text bootstrap` first.")
         transcriber = SenseVoiceSmallTranscriber(
             model_dir=Path(model_dir_text).expanduser(),
             language=config.sensevoice.language,
             use_itn=config.sensevoice.use_itn,
         )
     elif selected_provider == "volcengine":
-        from b2t.transcribers.volcengine import VolcengineFlashTranscriber
+        from v2t.transcribers.volcengine import VolcengineFlashTranscriber
 
         transcriber = VolcengineFlashTranscriber(
             api_key=config.volcengine.api_key,
@@ -46,7 +46,7 @@ def build_pipeline(
     else:
         raise RuntimeError(f"Unsupported provider: {selected_provider}")
 
-    return B2TPipeline(
+    return V2TPipeline(
         settings=settings,
         downloaders=build_downloaders(),
         transcriber=transcriber,

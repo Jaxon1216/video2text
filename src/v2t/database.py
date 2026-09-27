@@ -6,8 +6,8 @@ import threading
 import uuid
 from datetime import datetime
 
-from b2t.config import Settings
-from b2t.models import ProgressSnapshot, TaskRecord, TranscriptVersionRecord
+from v2t.config import Settings
+from v2t.models import ProgressSnapshot, TaskRecord, TranscriptVersionRecord
 
 
 def utc_now() -> str:

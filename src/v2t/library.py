@@ -5,10 +5,10 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from b2t.config import Settings
-from b2t.database import AppDatabase
-from b2t.inputs import safe_stem
-from b2t.models import TranscriptResult
+from v2t.config import Settings
+from v2t.database import AppDatabase
+from v2t.inputs import safe_stem
+from v2t.models import TranscriptResult
 
 
 def sha256_text(text: str) -> str:

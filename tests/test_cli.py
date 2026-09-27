@@ -1,6 +1,6 @@
 from typer.testing import CliRunner
 
-from b2t.cli import app
+from v2t.cli import app
 
 
 runner = CliRunner()
@@ -9,7 +9,7 @@ runner = CliRunner()
 def test_cli_help_renders() -> None:
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    assert "Bilibili" in result.stdout
+    assert "抖音" in result.stdout or "Douyin" in result.stdout
     assert "bootstrap" in result.stdout
     assert "batch" in result.stdout
     assert "transcribe" in result.stdout
@@ -26,7 +26,7 @@ def test_doctor_command_runs_without_crashing() -> None:
 
 
 def test_language_command_updates_workspace_config(tmp_path) -> None:
-    workspace = tmp_path / ".b2t"
+    workspace = tmp_path / ".v2t"
     result = runner.invoke(app, ["lang", "en-US", "--workspace", str(workspace)])
     assert result.exit_code == 0
     assert "Language switched to: English" in result.stdout
@@ -36,7 +36,7 @@ def test_language_command_updates_workspace_config(tmp_path) -> None:
 
 
 def test_bootstrap_sync_only_requires_existing_config(tmp_path) -> None:
-    workspace = tmp_path / ".b2t"
+    workspace = tmp_path / ".v2t"
     result = runner.invoke(app, ["bootstrap", "--sync-only", "--workspace", str(workspace)])
     assert result.exit_code == 1
     assert "请先运行一次 bootstrap" in result.stderr

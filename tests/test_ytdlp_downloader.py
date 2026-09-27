@@ -1,10 +1,10 @@
-from b2t.config import Settings
-from b2t.downloaders.ytdlp import YtDlpDownloader
-from b2t.models import SourceRef
+from v2t.config import Settings
+from v2t.downloaders.ytdlp import YtDlpDownloader
+from v2t.models import SourceRef
 
 
 def test_ytdlp_options_keep_single_video_output_template_by_default(tmp_path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     source = SourceRef(
         raw_input="BV1xx411c7XD",
         kind="bilibili",
@@ -21,7 +21,7 @@ def test_ytdlp_options_keep_single_video_output_template_by_default(tmp_path) ->
 
 
 def test_ytdlp_options_select_playlist_item_when_page_is_set(tmp_path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     source = SourceRef(
         raw_input="https://www.bilibili.com/video/BV1xx411c7XD?p=2",
         kind="bilibili",
@@ -39,8 +39,8 @@ def test_ytdlp_options_select_playlist_item_when_page_is_set(tmp_path) -> None:
 
 
 def test_ytdlp_options_bypass_proxy_by_default(tmp_path, monkeypatch) -> None:
-    monkeypatch.delenv("B2T_USE_PROXY", raising=False)
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    monkeypatch.delenv("V2T_USE_PROXY", raising=False)
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     source = SourceRef(
         raw_input="BV1xx411c7XD",
         kind="bilibili",
@@ -55,8 +55,8 @@ def test_ytdlp_options_bypass_proxy_by_default(tmp_path, monkeypatch) -> None:
 
 
 def test_ytdlp_options_keep_system_proxy_when_enabled(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("B2T_USE_PROXY", "1")
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    monkeypatch.setenv("V2T_USE_PROXY", "1")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     source = SourceRef(
         raw_input="BV1xx411c7XD",
         kind="bilibili",
@@ -71,8 +71,8 @@ def test_ytdlp_options_keep_system_proxy_when_enabled(tmp_path, monkeypatch) -> 
 
 
 def test_ytdlp_options_falsey_proxy_flag_still_bypasses(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("B2T_USE_PROXY", "0")
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    monkeypatch.setenv("V2T_USE_PROXY", "0")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     source = SourceRef(
         raw_input="BV1xx411c7XD",
         kind="bilibili",
@@ -87,8 +87,8 @@ def test_ytdlp_options_falsey_proxy_flag_still_bypasses(tmp_path, monkeypatch) -
 
 
 def test_ytdlp_options_use_workspace_cookie_file_when_present(tmp_path, monkeypatch) -> None:
-    monkeypatch.delenv("B2T_COOKIE_FILE", raising=False)
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    monkeypatch.delenv("V2T_COOKIE_FILE", raising=False)
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     settings.ensure_directories()
     cookie_file = settings.workspace_root / "cookies.txt"
     cookie_file.write_text("# placeholder cookie file\n", encoding="utf-8")
@@ -106,13 +106,13 @@ def test_ytdlp_options_use_workspace_cookie_file_when_present(tmp_path, monkeypa
 
 
 def test_ytdlp_options_env_cookie_file_takes_priority(tmp_path, monkeypatch) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     settings.ensure_directories()
     workspace_cookie_file = settings.workspace_root / "cookies.txt"
     workspace_cookie_file.write_text("# workspace cookie file\n", encoding="utf-8")
     env_cookie_file = tmp_path / "custom-cookies.txt"
     env_cookie_file.write_text("# env cookie file\n", encoding="utf-8")
-    monkeypatch.setenv("B2T_COOKIE_FILE", str(env_cookie_file))
+    monkeypatch.setenv("V2T_COOKIE_FILE", str(env_cookie_file))
     source = SourceRef(
         raw_input="BV1xx411c7XD",
         kind="bilibili",

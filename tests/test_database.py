@@ -1,14 +1,14 @@
 import json
 from pathlib import Path
 
-from b2t.config import Settings
-from b2t.database import AppDatabase
-from b2t.library import WorkspaceLibrary
-from b2t.models import ProgressSnapshot, SourceRef, TranscriptResult
+from v2t.config import Settings
+from v2t.database import AppDatabase
+from v2t.library import WorkspaceLibrary
+from v2t.models import ProgressSnapshot, SourceRef, TranscriptResult
 
 
 def test_settings_create_database_and_workspace_directories(tmp_path: Path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     settings.ensure_directories()
 
     assert settings.transcripts_original_dir.exists()
@@ -17,7 +17,7 @@ def test_settings_create_database_and_workspace_directories(tmp_path: Path) -> N
 
 
 def test_database_persists_task_progress(tmp_path: Path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     database = AppDatabase(settings)
 
     task = database.create_task(
@@ -43,7 +43,7 @@ def test_database_persists_task_progress(tmp_path: Path) -> None:
 
 
 def test_workspace_library_indexes_existing_files(tmp_path: Path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     settings.ensure_directories()
     transcript_path = settings.transcripts_original_dir / "demo-1.txt"
     metadata_path = settings.metadata_dir / "demo-1.json"
@@ -83,7 +83,7 @@ def test_workspace_library_indexes_existing_files(tmp_path: Path) -> None:
 
 
 def test_register_transcript_result_indexes_local_file_without_download_metadata(tmp_path: Path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     settings.ensure_directories()
     transcript_path = settings.transcripts_original_dir / "local-video.txt"
     transcript_path.write_text("hello from local file\n", encoding="utf-8")

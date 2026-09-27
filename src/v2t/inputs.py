@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from b2t.models import SourceRef
+from v2t.models import SourceRef
 
 
 BV_PATTERN = re.compile(r"(BV[0-9A-Za-z]{10})")
@@ -107,7 +107,7 @@ def parse_source_list(raw_input: str) -> list[str]:
 
 def safe_stem(value: str) -> str:
     stem = re.sub(r"[^\w.-]+", "-", value, flags=re.UNICODE).strip("-._")
-    return stem or "b2t-output"
+    return stem or "v2t-output"
 
 
 def _extract_page_from_url(url: str) -> int | None:

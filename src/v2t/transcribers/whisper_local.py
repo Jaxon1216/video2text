@@ -6,9 +6,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from b2t.i18n import dependency_sync_guidance
-from b2t.progress import ProgressReporter
-from b2t.transcribers.base import Transcriber
+from v2t.i18n import dependency_sync_guidance
+from v2t.progress import ProgressReporter
+from v2t.transcribers.base import Transcriber
 
 
 class LocalWhisperTranscriber(Transcriber):

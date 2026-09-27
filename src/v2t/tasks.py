@@ -4,14 +4,14 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from threading import Lock
 from typing import Callable
 
-from b2t.database import AppDatabase
-from b2t.library import WorkspaceLibrary
-from b2t.models import TaskRecord
-from b2t.pipeline import B2TPipeline
-from b2t.progress import ProgressCallback, ProgressReporter
+from v2t.database import AppDatabase
+from v2t.library import WorkspaceLibrary
+from v2t.models import TaskRecord
+from v2t.pipeline import V2TPipeline
+from v2t.progress import ProgressCallback, ProgressReporter
 
 
-PipelineFactory = Callable[[str, str], B2TPipeline]
+PipelineFactory = Callable[[str, str], V2TPipeline]
 
 
 class TaskService:
@@ -19,7 +19,7 @@ class TaskService:
         self.database = database
         self.library = library
         self.pipeline_factory = pipeline_factory
-        self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="b2t-task")
+        self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="v2t-task")
         self._listeners: dict[str, list[ProgressCallback]] = {}
         self._futures: dict[str, Future[object]] = {}
         self._lock = Lock()

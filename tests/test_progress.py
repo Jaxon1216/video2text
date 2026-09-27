@@ -1,4 +1,4 @@
-from b2t.progress import ProgressReporter, overall_progress
+from v2t.progress import ProgressReporter, overall_progress
 
 
 def test_overall_progress_uses_stage_ranges() -> None:

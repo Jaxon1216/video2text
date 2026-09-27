@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any, Callable
 
-from b2t.models import ProgressSnapshot
+from v2t.models import ProgressSnapshot
 
 
 ProgressCallback = Callable[[ProgressSnapshot], None]

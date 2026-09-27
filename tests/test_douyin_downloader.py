@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 
-from b2t.config import Settings
-from b2t.downloaders.douyin import (
+from v2t.config import Settings
+from v2t.downloaders.douyin import (
     DouyinDownloader,
     DouyinError,
     build_metadata,
@@ -16,7 +16,7 @@ from b2t.downloaders.douyin import (
     extract_detail,
     select_audio_urls,
 )
-from b2t.models import SourceRef
+from v2t.models import SourceRef
 
 
 def make_detail(**overrides: Any) -> dict[str, Any]:
@@ -106,9 +106,9 @@ def test_clean_title_falls_back_to_empty_for_hashtag_only_desc() -> None:
 
 
 def test_download_opens_canonical_page_and_saves_audio(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.delenv("B2T_DOUYIN_HEADLESS", raising=False)
-    monkeypatch.delenv("B2T_DOUYIN_BROWSER", raising=False)
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    monkeypatch.delenv("V2T_DOUYIN_HEADLESS", raising=False)
+    monkeypatch.delenv("V2T_DOUYIN_BROWSER", raising=False)
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     fetch_calls: list[tuple[str, dict[str, Any]]] = []
     requested: list[Any] = []
 
@@ -136,8 +136,8 @@ def test_download_opens_canonical_page_and_saves_audio(tmp_path: Path, monkeypat
 
 
 def test_download_uses_short_link_when_video_id_unknown(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("B2T_DOUYIN_HEADLESS", "0")
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    monkeypatch.setenv("V2T_DOUYIN_HEADLESS", "0")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     seen: dict[str, Any] = {}
 
     def fake_fetch(url: str, **kwargs: Any) -> dict[str, Any]:
@@ -153,7 +153,7 @@ def test_download_uses_short_link_when_video_id_unknown(tmp_path: Path, monkeypa
 
 
 def test_download_falls_back_to_next_url_on_error(tmp_path: Path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     attempts: list[str] = []
 
     def flaky_opener(request, timeout):  # type: ignore[no-untyped-def]
@@ -173,7 +173,7 @@ def test_download_falls_back_to_next_url_on_error(tmp_path: Path) -> None:
 
 
 def test_download_raises_when_all_urls_fail(tmp_path: Path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
 
     def failing_opener(request, timeout):  # type: ignore[no-untyped-def]
         raise urllib.error.URLError("blocked")
@@ -187,7 +187,7 @@ def test_download_raises_when_all_urls_fail(tmp_path: Path) -> None:
 
 
 def test_download_rejects_non_douyin_source(tmp_path: Path) -> None:
-    settings = Settings.from_workspace(tmp_path / ".b2t")
+    settings = Settings.from_workspace(tmp_path / ".v2t")
     source = SourceRef(raw_input="BV1xx411c7XD", kind="bilibili", display_name="BV1xx411c7XD")
     with pytest.raises(ValueError):
         DouyinDownloader(fetch_detail=lambda url, **kwargs: {}).download(source, settings)

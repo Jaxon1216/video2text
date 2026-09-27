@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 
-from b2t.config import Settings
-from b2t.i18n import DEFAULT_LANGUAGE, normalize_language
+from v2t.config import Settings
+from v2t.i18n import DEFAULT_LANGUAGE, normalize_language
 
 ALL_PROVIDERS = ("whisper", "sensevoice", "volcengine")
 ALL_FEATURES = ("web", "server")

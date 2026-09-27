@@ -30,8 +30,8 @@ flowchart LR
 
 | 环境变量 | 默认 | 作用 |
 | --- | --- | --- |
-| `B2T_DOUYIN_HEADLESS` | `1` | 设为 `0` 用有头模式（会弹出浏览器窗口），用于排查人机校验问题 |
-| `B2T_DOUYIN_BROWSER` | `auto` | `auto` 先用本机 Chrome，找不到再用 Playwright 自带 Chromium；也可指定 `chrome` / `msedge` / `chromium` |
+| `V2T_DOUYIN_HEADLESS` | `1` | 设为 `0` 用有头模式（会弹出浏览器窗口），用于排查人机校验问题 |
+| `V2T_DOUYIN_BROWSER` | `auto` | `auto` 先用本机 Chrome，找不到再用 Playwright 自带 Chromium；也可指定 `chrome` / `msedge` / `chromium` |
 
 依赖：`uv sync --extra douyin`。本机没有 Chrome 时再运行 `uv run playwright install chromium`。
 
@@ -41,7 +41,7 @@ flowchart LR
 
 | 报错 | 常见原因 | 处理 |
 | --- | --- | --- |
-| 打开抖音页面超时，没有等到视频详情数据 | 人机校验没过、网络慢、抖音改版不再请求该接口 | 设 `B2T_DOUYIN_HEADLESS=0` 看浏览器里实际显示什么 |
+| 打开抖音页面超时，没有等到视频详情数据 | 人机校验没过、网络慢、抖音改版不再请求该接口 | 设 `V2T_DOUYIN_HEADLESS=0` 看浏览器里实际显示什么 |
 | 抖音视频不可用（filter_reason） | 删除、私密、仅粉丝可见 | 无解，换视频 |
 | 这是抖音图文作品 | 图文作品没有口播音频 | 不支持 |
 | 抖音详情接口返回 HTTP 403/429 | 触发频率风控 | 等几分钟再试；删除 `<工作区>/browser` 重置浏览器状态 |

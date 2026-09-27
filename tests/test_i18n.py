@@ -1,4 +1,4 @@
-from b2t.i18n import dependency_sync_guidance, normalize_language, tr
+from v2t.i18n import dependency_sync_guidance, normalize_language, tr
 
 
 def test_normalize_language_accepts_short_codes() -> None:

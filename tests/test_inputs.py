@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from b2t.inputs import parse_source, parse_source_list, safe_stem
+from v2t.inputs import parse_source, parse_source_list, safe_stem
 
 
 def test_parse_bv_identifier() -> None:

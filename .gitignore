@@ -162,18 +162,6 @@ cython_debug/
 .vscode/
 .vscode
 
-# Temp Folder
-bilibili_video
-bilibili_video/
-
-# Temp folder
-audio
-audio/
-
-# Temp folder
-outputs
-outputs/
-
-# Executable files
-*.exe
-.b2t/
+# video2text workspace (transcripts, downloads, config with API keys)
+.v2t/
+cookies.txt

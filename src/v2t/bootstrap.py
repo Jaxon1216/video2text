@@ -9,9 +9,9 @@ from InquirerPy import inquirer
 from rich.console import Console
 from rich.panel import Panel
 
-from b2t.config import Settings
-from b2t.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, tr
-from b2t.user_config import ALL_FEATURES, ALL_PROVIDERS, AppConfig
+from v2t.config import Settings
+from v2t.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, tr
+from v2t.user_config import ALL_FEATURES, ALL_PROVIDERS, AppConfig
 
 
 def uv_available(which=shutil.which) -> bool:

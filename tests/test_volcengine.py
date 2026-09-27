@@ -4,7 +4,7 @@ import sys
 from types import SimpleNamespace
 from typing import Any
 
-from b2t.transcribers.volcengine import FLASH_URL, VolcengineFlashTranscriber
+from v2t.transcribers.volcengine import FLASH_URL, VolcengineFlashTranscriber
 
 
 class FakeResponse:

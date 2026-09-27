@@ -9,10 +9,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable
 
-from b2t.config import Settings
-from b2t.downloaders.base import Downloader
-from b2t.models import DownloadResult, SourceRef
-from b2t.progress import ProgressReporter
+from v2t.config import Settings
+from v2t.downloaders.base import Downloader
+from v2t.models import DownloadResult, SourceRef
+from v2t.progress import ProgressReporter
 
 DETAIL_API_PATH = "/aweme/v1/web/aweme/detail/"
 VIDEO_PAGE_URL = "https://www.douyin.com/video/{video_id}"
@@ -73,7 +73,7 @@ def fetch_aweme_detail(
             except PlaywrightTimeoutError as exc:
                 raise DouyinError(
                     f"打开抖音页面超时（{timeout_seconds:.0f}s），没有等到视频详情数据。"
-                    f"最后停留的页面：{page.url}。可能是人机校验未通过，可设置 B2T_DOUYIN_HEADLESS=0 用有头模式重试"
+                    f"最后停留的页面：{page.url}。可能是人机校验未通过，可设置 V2T_DOUYIN_HEADLESS=0 用有头模式重试"
                 ) from exc
             except PlaywrightError as exc:
                 raise DouyinError(f"浏览器加载抖音页面失败：{exc}") from exc
@@ -141,8 +141,8 @@ class DouyinDownloader(Downloader):
         payload = self._fetch_detail(
             page_url,
             profile_dir=settings.workspace_root / "browser",
-            headless=_env_flag("B2T_DOUYIN_HEADLESS", default=True),
-            channel=os.getenv("B2T_DOUYIN_BROWSER", "auto").strip() or "auto",
+            headless=_env_flag("V2T_DOUYIN_HEADLESS", default=True),
+            channel=os.getenv("V2T_DOUYIN_BROWSER", "auto").strip() or "auto",
         )
         detail = extract_detail(payload)
         video_id = str(detail.get("aweme_id") or source.video_id or "")

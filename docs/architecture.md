@@ -2,14 +2,14 @@
 
 ## 总览
 
-CLI 优先的 Python 包。CLI、Web 只是外壳，全部通过 `TaskService` 提交任务，由统一的 `B2TPipeline` 执行。
+CLI 优先的 Python 包。CLI、Web 只是外壳，全部通过 `TaskService` 提交任务，由统一的 `V2TPipeline` 执行。
 
 ```mermaid
 flowchart LR
     CLI["cli.py"] --> TaskService
     Web["web.py"] --> TaskService
     TaskService["tasks.py 线程池"] --> Factory["factory.build_pipeline"]
-    Factory --> Pipeline["pipeline.B2TPipeline"]
+    Factory --> Pipeline["pipeline.V2TPipeline"]
     Pipeline --> Inputs["inputs.parse_source"]
     Pipeline --> Downloader["downloaders/*"]
     Pipeline --> FFmpeg["ffmpeg 转 16k 单声道 wav"]
@@ -47,10 +47,10 @@ flowchart LR
 
 ## 工作区目录
 
-默认 `./.b2t`（可用环境变量 `B2T_HOME` 或 `--workspace` 覆盖）：
+默认 `./.v2t`（可用环境变量 `V2T_HOME` 或 `--workspace` 覆盖）：
 
 ```text
-.b2t/
+.v2t/
   config.json          用户配置（默认 provider/model、云 ASR key）
   app.db               SQLite 索引
   downloads/           下载的视频/音频
@@ -76,11 +76,11 @@ flowchart LR
 
 | 变量 | 作用 |
 | --- | --- |
-| `B2T_HOME` | 工作区目录 |
-| `B2T_LANG` | 界面语言 |
-| `B2T_COOKIE_FILE` | B站 cookies.txt 路径（默认 `<工作区>/cookies.txt`） |
-| `B2T_USE_PROXY` | B站下载是否走系统代理（默认直连） |
-| `B2T_DOUYIN_HEADLESS` | 抖音解析是否用无头浏览器（默认 `1`） |
-| `B2T_DOUYIN_BROWSER` | 抖音解析用哪个浏览器：`auto`（默认，先本机 Chrome 再自带 Chromium）/ `chrome` / `chromium` |
+| `V2T_HOME` | 工作区目录 |
+| `V2T_LANG` | 界面语言 |
+| `V2T_COOKIE_FILE` | B站 cookies.txt 路径（默认 `<工作区>/cookies.txt`） |
+| `V2T_USE_PROXY` | B站下载是否走系统代理（默认直连） |
+| `V2T_DOUYIN_HEADLESS` | 抖音解析是否用无头浏览器（默认 `1`） |
+| `V2T_DOUYIN_BROWSER` | 抖音解析用哪个浏览器：`auto`（默认，先本机 Chrome 再自带 Chromium）/ `chrome` / `chromium` |
 
 平台细节见 `docs/platforms/`。

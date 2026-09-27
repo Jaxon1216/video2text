@@ -3,19 +3,19 @@ requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "bili2text"
-version = "0.3.0"
-description = "CLI-first Bilibili to text toolkit with optional web and server features."
+name = "video2text"
+version = "0.1.0"
+description = "Turn Bilibili / Douyin videos into timestamped transcripts ready for AI."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 license = { text = "MIT" }
-authors = [{ name = "Lanbin" }]
+authors = [{ name = "EastonJiang" }]
 dependencies = [
   "InquirerPy>=0.3.4",
   "rich>=13.9.4",
   "tqdm>=4.67.3",
   "typer>=0.12.5",
-  "yt-dlp>=2025.3.31",
+  "yt-dlp>=2026.8.19",
 ]
 
 [project.optional-dependencies]
@@ -46,7 +46,7 @@ server = [
   "uvicorn>=0.34.0",
 ]
 [project.scripts]
-bili2text = "b2t.cli:main"
+video2text = "v2t.cli:main"
 
 [dependency-groups]
 dev = [
@@ -59,4 +59,4 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/b2t"]
+packages = ["src/v2t"]
