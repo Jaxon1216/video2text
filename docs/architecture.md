@@ -1,0 +1,82 @@
+# 架构
+
+## 总览
+
+CLI 优先的 Python 包。CLI、Web 只是外壳，全部通过 `TaskService` 提交任务，由统一的 `B2TPipeline` 执行。
+
+```mermaid
+flowchart LR
+    CLI["cli.py"] --> TaskService
+    Web["web.py"] --> TaskService
+    TaskService["tasks.py 线程池"] --> Factory["factory.build_pipeline"]
+    Factory --> Pipeline["pipeline.B2TPipeline"]
+    Pipeline --> Inputs["inputs.parse_source"]
+    Pipeline --> Downloader["downloaders/*"]
+    Pipeline --> FFmpeg["ffmpeg 转 16k 单声道 wav"]
+    Pipeline --> Transcriber["transcribers/*"]
+    TaskService --> Library["library.py"]
+    Library --> Files["本地文件：txt + metadata json"]
+    Library --> DB["SQLite 索引"]
+```
+
+## 一次转写的数据流
+
+1. `inputs.parse_source(raw)` 把输入解析为 `SourceRef(kind=bilibili|douyin|video|audio, ...)`。
+2. 远程来源（bilibili / douyin）交给 `factory` 按 `kind` 选出的 Downloader，得到 `DownloadResult(video_path, title, metadata)`。`video_path` 可以是视频也可以是纯音频文件。
+3. `pipeline._extract_audio` 用 ffmpeg 转成 16kHz 单声道 wav（本地音频文件跳过这一步）。
+4. `Transcriber.transcribe(audio_path, prompt, progress)` 返回 `{"text", "segments", "language", "model", ...}`。
+5. pipeline 写出 `transcripts/original/<stem>-<时间>.txt` 和 `metadata/<stem>-<时间>.json`。
+6. `library.register_transcript_result` 在 SQLite 里登记 video 和当前转写稿版本。
+
+## 模块职责
+
+| 模块 | 职责 |
+| --- | --- |
+| `inputs.py` | 输入识别：本地文件后缀、B站 BV / 链接、抖音分享文本与链接 |
+| `models.py` | 纯数据类，无业务逻辑 |
+| `downloaders/` | `Downloader.download(source, settings, progress) -> DownloadResult` |
+| `transcribers/` | `Transcriber.transcribe(audio_path, prompt, progress) -> dict` |
+| `factory.py` | 组装 pipeline：provider -> Transcriber，kind -> Downloader |
+| `pipeline.py` | 唯一的流程编排处 |
+| `tasks.py` | `ThreadPoolExecutor(max_workers=2)`；把进度快照写库并通知监听者 |
+| `progress.py` | 各阶段占总进度的区间：preparing / downloading / extracting_audio / transcribing / writing_outputs / indexing |
+| `library.py` | 登记结果、编辑后另存新版本、启动时扫描工作区补索引 |
+| `database.py` | SQLite 表结构与查询 |
+| `web.py` | FastAPI：HTML 页面 + `/api/*`（接口见 `docs/api.md`） |
+| `user_config.py` / `bootstrap.py` | `config.json` 读写与首次配置向导 |
+
+## 工作区目录
+
+默认 `./.b2t`（可用环境变量 `B2T_HOME` 或 `--workspace` 覆盖）：
+
+```text
+.b2t/
+  config.json          用户配置（默认 provider/model、云 ASR key）
+  app.db               SQLite 索引
+  downloads/           下载的视频/音频
+  audio/               ffmpeg 输出的 16k wav
+  transcripts/original 原始转写稿
+  transcripts/edited   Web 上编辑后另存的版本
+  metadata/            每次转写的 metadata json（来源、引擎、下载信息）
+  browser/             抖音解析用的持久化浏览器目录
+```
+
+本地文件是真实数据源，SQLite 只做索引；数据库里存的是相对工作区的路径。
+
+## 数据库表
+
+- `tasks` / `task_progress_events`：任务状态与进度事件
+- `videos`：一条转写结果（`source_kind`、来源、标题、引擎、文件路径、当前版本指针）
+- `transcript_versions`：`kind=original|edited`，每个版本一个文件
+- `categories` / `tags` / `video_tags`：分类与标签
+
+`tasks.kind` 与 `transcript_versions.kind` 是以后扩展"总结 / 分章节"等新任务、新产物的挂载点。
+
+## 配置与环境变量
+
+| 变量 | 作用 |
+| --- | --- |
+| `B2T_HOME` | 工作区目录 |
+| `B2T_LANG` | 界面语言 |
+| `B2T_COOKIE_FILE` | B站 cookies.txt 路径（默认 `<工作区>/cookies.txt`） |
+| `B2T_USE_PROXY` | B站下载是否走系统代理（默认直连） |
