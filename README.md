@@ -84,6 +84,7 @@ uv run video2text ui   # http://127.0.0.1:8000
 - [docs/development.md](docs/development.md)：本地开发
 - [docs/api.md](docs/api.md)：HTTP API
 - [docs/platforms/](docs/platforms/)：各平台实现细节
+- [docs/benchmark.md](docs/benchmark.md)：本地 / 云端 ASR 评测方法
 - [docs/roadmap.md](docs/roadmap.md)：路线图
 
 ## 使用须知

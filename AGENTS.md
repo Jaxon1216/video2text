@@ -43,6 +43,7 @@ src/v2t/
   pipeline.py       核心流程：下载 -> ffmpeg 抽 16k wav -> 转写 -> 写 txt + metadata json（含 segments）
   segments.py       segment 结构 {start, end, text}（秒）与归一化
   formatters.py     导出渲染：带时间戳 txt / plain / md / srt
+  evaluation.py     评测指标：CER、术语召回
   downloaders/      ytdlp.py（B站：短链解析、字幕优先）、douyin.py（抖音）
   transcribers/     faster_whisper_local.py、whisper_local.py、sensevoice_local.py、volcengine.py
   tasks.py          线程池任务服务 + 进度回调
@@ -54,6 +55,7 @@ src/v2t/
   bootstrap.py      首次运行配置向导
   i18n.py           中英文文案
 web/                React 前端：src/api.ts（接口类型）、format.ts（时间戳分段、Copy for AI）、pages/
+scripts/bench_asr.py  ASR 评测脚本（见 docs/benchmark.md）
 tests/              pytest，网络全部 mock
 docs/               架构、路线图、决策、平台说明、API
 ```

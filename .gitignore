@@ -170,3 +170,6 @@ cookies.txt
 web/node_modules/
 web/dist/
 *.tsbuildinfo
+
+# ASR benchmark cases and reports (personal audio)
+bench/

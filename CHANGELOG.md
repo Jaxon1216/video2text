@@ -8,6 +8,7 @@
 - 新增 faster-whisper 引擎并设为默认：CPU int8、VAD、真实进度；中文自动输出简体和标点；模型按配置缓存复用，任务并发默认 1（`V2T_TASK_WORKERS`）。
 - 全新 Web 界面（React，阅读器风格）：粘贴链接 → 进度 → 带时间戳的文字稿；一键 Copy for AI、复制单段、下载 TXT / Markdown / SRT；B站时间戳可跳转原视频。旧的 Jinja 页面已移除。
 - B站字幕优先：有 CC / AI 字幕（需登录 Cookie，支持 `V2T_COOKIES_FROM_BROWSER=chrome` 直接读浏览器）时直接使用，秒出结果；没有再走 ASR。`--force-asr` 可强制识别。支持 `b23.tv` 短链。
+- 新增 ASR 评测脚本 `scripts/bench_asr.py`：多引擎、有无术语提示词对比，输出 CER、术语召回、RTF、成本。
 - 项目更名为 video2text：包名 `v2t`、命令 `video2text`、工作目录 `.v2t`、环境变量 `V2T_*`。
 - 移除 Tk 桌面窗口、旧版脚本和原项目素材。
 - 新增 `AGENTS.md` 与 `docs/` 文档体系。

@@ -11,7 +11,7 @@
 | 4 | faster-whisper 引擎 + transcriber 缓存 + 任务并发可配置 | 完成 |
 | 5 | React SPA（Copy for AI），跑通后删除 Jinja 页面 | 完成 |
 | 6 | B站字幕优先（拿不到再 ASR）+ b23.tv 短链 | 完成 |
-| 7 | ASR 评测脚本：CER、术语召回、RTF、成本 | 待办 |
+| 7 | ASR 评测脚本：CER、术语召回、RTF、成本 | 完成（工具就绪，正式样本待准备） |
 | 8 | Docker（可选） | 待办 |
 
 ## 已知问题
