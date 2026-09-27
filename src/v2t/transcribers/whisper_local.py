@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,9 @@ from v2t.i18n import dependency_sync_guidance
 from v2t.progress import ProgressReporter
 from v2t.segments import normalize_segments
 from v2t.transcribers.base import Transcriber
+
+
+_TRANSCRIBE_LOCK = threading.Lock()
 
 
 class LocalWhisperTranscriber(Transcriber):
@@ -27,18 +31,20 @@ class LocalWhisperTranscriber(Transcriber):
         prompt: str | None = None,
         progress: ProgressReporter | None = None,
     ) -> dict[str, Any]:
-        model = self._ensure_model()
-        if progress is not None:
-            progress.running("transcribing", message="transcribing", stage_progress=0.0)
-        transcribe_options: dict[str, Any] = {
-            "initial_prompt": prompt or None,
-            # `verbose=False` keeps Whisper text output quiet while still driving the internal tqdm loop.
-            "verbose": False,
-        }
-        if self.device == "cpu":
-            transcribe_options["fp16"] = False
-        with whisper_progress(progress):
-            result = model.transcribe(str(audio_path), **transcribe_options)
+        # whisper_progress swaps a module-level tqdm, so concurrent calls must not overlap.
+        with _TRANSCRIBE_LOCK:
+            model = self._ensure_model()
+            if progress is not None:
+                progress.running("transcribing", message="transcribing", stage_progress=0.0)
+            transcribe_options: dict[str, Any] = {
+                "initial_prompt": prompt or None,
+                # `verbose=False` keeps Whisper text output quiet while still driving the internal tqdm loop.
+                "verbose": False,
+            }
+            if self.device == "cpu":
+                transcribe_options["fp16"] = False
+            with whisper_progress(progress):
+                result = model.transcribe(str(audio_path), **transcribe_options)
         text = (result.get("text") or "").strip()
         return {
             "text": text,

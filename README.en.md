@@ -22,6 +22,7 @@ A personal project built on top of [bili2text](https://github.com/lanbinleo/bili
 
 | Engine | Type | Notes |
 | --- | --- | --- |
+| faster-whisper (default) | local | Whisper on CTranslate2, fast on CPU |
 | Whisper | local | openai-whisper, offline |
 | SenseVoice | local | strong on Mandarin, model download required |
 | Volcengine | cloud | flash ASR API, accurate, needs an API key |
@@ -31,7 +32,7 @@ A personal project built on top of [bili2text](https://github.com/lanbinleo/bili
 Requires Python 3.10–3.12, [uv](https://docs.astral.sh/uv/) and ffmpeg.
 
 ```bash
-uv sync --extra whisper --extra web --extra douyin
+uv sync --extra faster-whisper --extra web --extra douyin
 # only if Google Chrome is not installed:
 uv run playwright install chromium
 

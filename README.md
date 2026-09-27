@@ -22,6 +22,7 @@
 
 | 引擎 | 类型 | 说明 |
 | --- | --- | --- |
+| faster-whisper（默认） | 本地 | CTranslate2 版 Whisper，CPU 上也快；中文自动输出简体和标点 |
 | Whisper | 本地 | openai-whisper，离线运行 |
 | SenseVoice | 本地 | 中文效果好，需要先下载模型 |
 | 火山引擎 | 云端 | 极速版 API，准确率高，需要 API Key |
@@ -31,7 +32,7 @@
 需要 Python 3.10–3.12、[uv](https://docs.astral.sh/uv/) 和 ffmpeg。
 
 ```bash
-uv sync --extra whisper --extra web --extra douyin
+uv sync --extra faster-whisper --extra web --extra douyin
 # 本机没有 Chrome 时才需要：
 uv run playwright install chromium
 ```
@@ -41,7 +42,9 @@ uv run playwright install chromium
 ```bash
 uv run video2text tx "https://www.bilibili.com/video/BV1xx411c7XD"
 uv run video2text tx "复制打开抖音，看看【xxx的作品】... https://v.douyin.com/xxxx/"
-uv run video2text tx ./my-video.mp4 --provider whisper --model medium
+uv run video2text tx ./my-video.mp4 --model medium
+# 专业术语多时加提示词，识别会准很多：
+uv run video2text tx "<链接>" --prompt "线程池、核心线程、阻塞队列。"
 ```
 
 批量（每行一个输入）：
@@ -56,12 +59,15 @@ Web 界面：
 uv run video2text ui   # http://127.0.0.1:8000
 ```
 
+首次使用 faster-whisper 会从 HuggingFace 下载模型；国内网络请先 `export HF_ENDPOINT=https://hf-mirror.com`。
+
 ## 命令一览
 
 | 命令 | 缩写 | 说明 |
 | --- | --- | --- |
 | `video2text transcribe` | `tx` | 转写一个输入 |
 | `video2text batch` | - | 批量转写 |
+| `video2text export` | - | 导出已转写的视频（txt / plain / md / srt） |
 | `video2text web` | `ui` | 启动 Web 界面 |
 | `video2text server` | `srv` | 以 `0.0.0.0` 启动服务 |
 | `video2text bootstrap` | `init` | 配置向导 |

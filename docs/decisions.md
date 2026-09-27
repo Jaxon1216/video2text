@@ -28,3 +28,9 @@
 
 - 决定：`web/` 下 Vite + React + TypeScript，构建产物由 FastAPI 托管（单进程）。SPA 跑通后删除 Jinja 页面。
 - 原因：现有 JSON API 已比较完整；SPA 更方便做 Copy for AI、时间戳跳转等交互。
+
+## D6 默认本地引擎改为 faster-whisper
+
+- 背景：openai-whisper 依赖 torch、体积大；中文输出常为繁体且无标点；每个任务都会重新加载模型。
+- 决定：新增 faster-whisper（CTranslate2，CPU 用 int8、开启 VAD）并设为默认；`language=zh` 时自动加简体中文提示词，用户 prompt 追加在后；factory 按配置缓存 transcriber；任务并发默认 1（`V2T_TASK_WORKERS`）。
+- 原因：不需要 torch，Docker 镜像更小；实测 5 分钟抖音视频输出简体带标点，加术语 prompt 后专业词识别正确。

@@ -20,7 +20,7 @@ from v2t.tasks import TaskService
 
 class TranscribeTaskRequest(BaseModel):
     source: str
-    provider: str = "whisper"
+    provider: str = "faster-whisper"
     model: str = "small"
     prompt: str = ""
 
@@ -28,7 +28,7 @@ class TranscribeTaskRequest(BaseModel):
 class BatchTranscribeTaskRequest(BaseModel):
     sources: list[str] | None = None
     source_text: str | None = None
-    provider: str = "whisper"
+    provider: str = "faster-whisper"
     model: str = "small"
     prompt: str = ""
 
@@ -52,7 +52,7 @@ def create_app(
     task_service: TaskService,
     library: WorkspaceLibrary,
     database: AppDatabase,
-    default_provider: str = "whisper",
+    default_provider: str = "faster-whisper",
     default_model: str = "small",
     language: str = "zh-CN",
 ) -> FastAPI:
@@ -82,7 +82,7 @@ def create_app(
     async def transcribe_from_form(
         request: Request,
         source: str = Form(...),
-        provider: str = Form("whisper"),
+        provider: str = Form("faster-whisper"),
         model: str = Form("small"),
         prompt: str = Form(""),
     ) -> HTMLResponse:

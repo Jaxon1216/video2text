@@ -39,9 +39,9 @@ flowchart LR
 | `formatters.py` | 纯函数：时间戳格式化、按 30 秒合并段落、txt / md / srt 渲染 |
 | `downloaders/` | `Downloader.download(source, settings, progress) -> DownloadResult` |
 | `transcribers/` | `Transcriber.transcribe(audio_path, prompt, progress) -> dict` |
-| `factory.py` | 组装 pipeline：provider -> Transcriber，kind -> Downloader |
+| `factory.py` | 组装 pipeline：provider -> Transcriber（按 provider + model + 配置缓存，模型只加载一次），kind -> Downloader |
 | `pipeline.py` | 唯一的流程编排处 |
-| `tasks.py` | `ThreadPoolExecutor(max_workers=2)`；把进度快照写库并通知监听者 |
+| `tasks.py` | `ThreadPoolExecutor`（并发数 `V2T_TASK_WORKERS`，默认 1）；把进度快照写库并通知监听者 |
 | `progress.py` | 各阶段占总进度的区间：preparing / downloading / extracting_audio / transcribing / writing_outputs / indexing |
 | `library.py` | 登记结果、编辑后另存新版本、启动时扫描工作区补索引 |
 | `database.py` | SQLite 表结构与查询 |
@@ -84,6 +84,8 @@ flowchart LR
 | `V2T_LANG` | 界面语言 |
 | `V2T_COOKIE_FILE` | B站 cookies.txt 路径（默认 `<工作区>/cookies.txt`） |
 | `V2T_USE_PROXY` | B站下载是否走系统代理（默认直连） |
+| `V2T_TASK_WORKERS` | 同时执行的任务数（默认 1；只用云 ASR 时可调大） |
+| `HF_ENDPOINT` | HuggingFace 镜像，国内下载 faster-whisper 模型用 `https://hf-mirror.com` |
 | `V2T_DOUYIN_HEADLESS` | 抖音解析是否用无头浏览器（默认 `1`） |
 | `V2T_DOUYIN_BROWSER` | 抖音解析用哪个浏览器：`auto`（默认，先本机 Chrome 再自带 Chromium）/ `chrome` / `chromium` |
 

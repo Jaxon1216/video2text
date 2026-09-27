@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from concurrent.futures import Future, ThreadPoolExecutor
 from threading import Lock
 from typing import Callable
@@ -14,12 +15,21 @@ from v2t.progress import ProgressCallback, ProgressReporter
 PipelineFactory = Callable[[str, str], V2TPipeline]
 
 
+def task_workers_from_env(default: int = 1) -> int:
+    """Local ASR is CPU/GPU bound, so one worker is the sensible default; cloud-only setups can raise it."""
+    try:
+        value = int(os.getenv("V2T_TASK_WORKERS", "") or default)
+    except ValueError:
+        return default
+    return max(1, value)
+
+
 class TaskService:
     def __init__(self, *, database: AppDatabase, library: WorkspaceLibrary, pipeline_factory: PipelineFactory) -> None:
         self.database = database
         self.library = library
         self.pipeline_factory = pipeline_factory
-        self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="v2t-task")
+        self.executor = ThreadPoolExecutor(max_workers=task_workers_from_env(), thread_name_prefix="v2t-task")
         self._listeners: dict[str, list[ProgressCallback]] = {}
         self._futures: dict[str, Future[object]] = {}
         self._lock = Lock()

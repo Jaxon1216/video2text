@@ -153,6 +153,11 @@ def run_bootstrap(*, settings: Settings, interactive: bool = True) -> AppConfig:
     console.rule(f"[bold]{tr(lang, 'bootstrap_step_providers')}[/bold]")
     provider_choices = [
         {
+            "name": f"faster-whisper — {tr(lang, 'provider_faster-whisper_short')}",
+            "value": "faster-whisper",
+            "enabled": "faster-whisper" in config.enabled_providers,
+        },
+        {
             "name": f"whisper    — {tr(lang, 'provider_whisper_short')}",
             "value": "whisper",
             "enabled": "whisper" in config.enabled_providers,
@@ -198,13 +203,16 @@ def run_bootstrap(*, settings: Settings, interactive: bool = True) -> AppConfig:
 
     # ── 4. Configure each selected provider ──────────────────
     selected_whisper_model: str | None = None
+    selected_faster_whisper_model: str | None = None
     for provider in selected_providers:
         console.print()
         console.rule(f"[bold cyan]{tr(lang, f'provider_{provider}_name')}[/bold cyan]")
         console.print(f"[dim]{tr(lang, f'provider_{provider}_desc')}[/dim]")
         console.print()
 
-        if provider == "whisper":
+        if provider == "faster-whisper":
+            selected_faster_whisper_model = _configure_faster_whisper(config, lang)
+        elif provider == "whisper":
             selected_whisper_model = _configure_whisper(config, lang)
         elif provider == "sensevoice":
             _configure_sensevoice(config, lang)
@@ -228,6 +236,8 @@ def run_bootstrap(*, settings: Settings, interactive: bool = True) -> AppConfig:
         ).execute()
     if config.default_provider == "whisper" and selected_whisper_model:
         config.default_model = selected_whisper_model
+    if config.default_provider == "faster-whisper" and selected_faster_whisper_model:
+        config.default_model = selected_faster_whisper_model
 
     # ── Save and show next steps ─────────────────────────────
     config.save(settings)
@@ -255,6 +265,24 @@ def ensure_bootstrap(*, settings: Settings, allow_prompt: bool = True) -> AppCon
 
 
 # ── Provider configuration flows ─────────────────────────────
+
+
+FASTER_WHISPER_MODELS = ("tiny", "base", "small", "medium", "large-v3-turbo", "large-v3")
+
+
+def _configure_faster_whisper(config: AppConfig, lang: str) -> str:
+    return inquirer.select(
+        message=tr(lang, "bootstrap_faster_whisper_model_prompt"),
+        choices=[
+            {"name": "tiny           — " + tr(lang, "whisper_model_tiny"), "value": "tiny"},
+            {"name": "base           — " + tr(lang, "whisper_model_base"), "value": "base"},
+            {"name": "small          — " + tr(lang, "whisper_model_small"), "value": "small"},
+            {"name": "medium         — " + tr(lang, "whisper_model_medium"), "value": "medium"},
+            {"name": "large-v3-turbo — " + tr(lang, "whisper_model_large_v3_turbo"), "value": "large-v3-turbo"},
+            {"name": "large-v3       — " + tr(lang, "whisper_model_large"), "value": "large-v3"},
+        ],
+        default=config.default_model if config.default_model in FASTER_WHISPER_MODELS else "small",
+    ).execute()
 
 
 def _configure_whisper(config: AppConfig, lang: str) -> str:

@@ -53,6 +53,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "doctor_yt_dlp": "yt-dlp",
         "doctor_ffmpeg": "ffmpeg",
         "doctor_whisper": "whisper",
+        "doctor_faster_whisper": "faster-whisper",
         "doctor_sensevoice": "funasr-onnx",
         "doctor_requests": "requests",
         "doctor_playwright": "playwright（抖音）",
@@ -74,6 +75,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "bootstrap_sync_success": "环境同步完成。",
         "bootstrap_sync_failed": "uv sync 执行失败，请检查输出后重试。",
         "bootstrap_whisper_model_prompt": "选择 Whisper 模型（越大越准，也越慢）",
+        "bootstrap_faster_whisper_model_prompt": "选择 faster-whisper 模型（越大越准，也越慢）",
         "bootstrap_sensevoice_dir_prompt": "SenseVoice 模型目录（留空用默认）",
         "bootstrap_sensevoice_lang_prompt": "SenseVoice 识别语言",
         "bootstrap_sensevoice_itn_prompt": "启用逆文本正则化（把数字、日期转为书面格式）",
@@ -109,12 +111,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         "whisper_model_small": "平衡之选，推荐大多数人用这个",
         "whisper_model_medium": "精度更高，但跑得慢一些",
         "whisper_model_large": "最高精度，需要较多显存",
+        "whisper_model_large_v3_turbo": "接近 large 的精度，速度快很多",
 
         # ── SenseVoice language descriptions ─────────────────
         "sensevoice_lang_auto": "自动检测",
 
         # ── Provider short descriptions (for select menu) ────
         "provider_whisper_short": "本地离线，不依赖云服务",
+        "provider_faster-whisper_short": "本地离线，CPU 上也快，推荐（中文自动输出简体和标点）",
+        "provider_faster-whisper_name": "faster-whisper 本地模型",
+        "provider_faster-whisper_desc": "基于 CTranslate2 的 Whisper，不依赖 torch。首次使用会自动从 HuggingFace 下载模型。",
         "provider_sensevoice_short": "本地 ONNX 模型，中文效果好",
         "provider_volcengine_short": "火山引擎云端识别，需要凭据",
         "feature_web_short": "浏览器界面，在网页上操作",
@@ -168,6 +174,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "progress_message_preparing": "正在准备环境",
         "progress_message_downloading": "正在下载视频",
         "progress_message_resolving": "正在解析视频信息",
+        "progress_message_loading_model": "正在加载模型",
         "progress_message_download_finished": "下载完成",
         "progress_message_extracting_audio": "正在提取音频",
         "progress_message_transcribing": "正在识别语音",
@@ -217,6 +224,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "doctor_yt_dlp": "yt-dlp",
         "doctor_ffmpeg": "ffmpeg",
         "doctor_whisper": "whisper",
+        "doctor_faster_whisper": "faster-whisper",
         "doctor_sensevoice": "funasr-onnx",
         "doctor_requests": "requests",
         "doctor_playwright": "playwright (Douyin)",
@@ -238,6 +246,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "bootstrap_sync_success": "Environment synced successfully.",
         "bootstrap_sync_failed": "uv sync failed — check the output above and try again.",
         "bootstrap_whisper_model_prompt": "Pick a Whisper model (bigger = more accurate, but slower)",
+        "bootstrap_faster_whisper_model_prompt": "Pick a faster-whisper model (bigger = more accurate, but slower)",
         "bootstrap_sensevoice_dir_prompt": "SenseVoice model directory (leave blank for the default)",
         "bootstrap_sensevoice_lang_prompt": "SenseVoice recognition language",
         "bootstrap_sensevoice_itn_prompt": "Turn on inverse text normalization (formats numbers, dates, etc.)",
@@ -273,12 +282,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         "whisper_model_small": "Good balance — recommended for most people",
         "whisper_model_medium": "Better accuracy, takes longer",
         "whisper_model_large": "Best accuracy, needs more VRAM",
+        "whisper_model_large_v3_turbo": "Close to large accuracy, much faster",
 
         # ── SenseVoice language descriptions ─────────────────
         "sensevoice_lang_auto": "auto-detect",
 
         # ── Provider short descriptions (for select menu) ────
         "provider_whisper_short": "Runs locally, no cloud needed",
+        "provider_faster-whisper_short": "Runs locally, fast even on CPU — recommended",
+        "provider_faster-whisper_name": "faster-whisper (local)",
+        "provider_faster-whisper_desc": "Whisper on CTranslate2, no torch needed. Models download from HuggingFace on first use.",
         "provider_sensevoice_short": "Local ONNX model, great for Chinese",
         "provider_volcengine_short": "Volcengine cloud ASR, needs credentials",
         "feature_web_short": "Web interface — use in your browser",
@@ -332,6 +345,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "progress_message_preparing": "Setting things up",
         "progress_message_downloading": "Downloading the video",
         "progress_message_resolving": "Resolving video info",
+        "progress_message_loading_model": "Loading model",
         "progress_message_download_finished": "Download complete",
         "progress_message_extracting_audio": "Extracting audio track",
         "progress_message_transcribing": "Running speech recognition",

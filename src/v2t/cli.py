@@ -191,6 +191,13 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
             rows.insert(0, (tr(selected_language, "doctor_yt_dlp"), tr(selected_language, "status_ok")))
 
         try:
+            import faster_whisper  # noqa: F401
+        except ImportError:
+            rows.append((tr(selected_language, "doctor_faster_whisper"), tr(selected_language, "status_missing")))
+        else:
+            rows.append((tr(selected_language, "doctor_faster_whisper"), tr(selected_language, "status_ok")))
+
+        try:
             import whisper  # noqa: F401
         except ImportError:
             rows.append((tr(selected_language, "doctor_whisper"), tr(selected_language, "status_missing")))

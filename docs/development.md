@@ -8,8 +8,8 @@
 - 抖音解析需要本机 Chrome，或 `uv run playwright install chromium`
 
 ```bash
-uv sync --extra whisper --extra web --extra douyin   # 常用组合
-uv sync --extra sensevoice --extra volcengine        # 其他引擎按需追加
+uv sync --extra faster-whisper --extra web --extra douyin                 # 常用组合
+uv sync --extra faster-whisper --extra web --extra douyin --extra volcengine --extra whisper   # 全部引擎
 ```
 
 注意：`uv sync` 会卸载没列出的 extras，每次都要带上完整组合。`video2text bootstrap` 会按配置自动拼好命令（`douyin` 始终包含）。
@@ -26,7 +26,8 @@ uv run video2text ui --port 8765       # Web 调试
 ## 配置
 
 - 工作区默认 `./.v2t`（`V2T_HOME` 或 `--workspace` 覆盖），里面的 `config.json` 保存默认引擎和云 ASR key，已被 `.gitignore` 忽略。
-- 首次运行会进入配置向导；非交互环境（如后台服务）会写入默认配置（whisper small）。
+- 首次运行会进入配置向导；非交互环境（如后台服务）会写入默认配置（faster-whisper small，中文）。
+- faster-whisper 的语言、设备、beam_size、VAD 在 `config.json` 的 `faster_whisper` 段调整；模型缓存在 HuggingFace 默认目录（`~/.cache/huggingface`），国内需 `HF_ENDPOINT=https://hf-mirror.com`。
 - 平台相关的环境变量见 `docs/platforms/`。
 
 ## 约定

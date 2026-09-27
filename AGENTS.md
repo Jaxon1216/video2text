@@ -12,15 +12,16 @@ video2text：把 B站 / 抖音视频链接快速转成**带时间戳的文字稿
 - Python 3.10–3.12（本机 `.venv` 为 3.11），包管理 `uv`，按 extras 安装可选依赖
 - CLI：typer；Web：FastAPI（+ 过渡期的 Jinja 模板）；存储：SQLite + 本地文件
 - 下载：yt-dlp（B站）、Playwright 浏览器截获（抖音）；音频：ffmpeg
-- ASR：openai-whisper / SenseVoice（本地）、火山引擎（云端）
+- ASR：faster-whisper（默认）/ openai-whisper / SenseVoice（本地）、火山引擎（云端）
 
 ## 常用命令
 
 本机 `uv` 只装在 pyenv 3.11.15 下，执行前先 `source ~/.zshrc`。
 
 ```bash
-uv sync --extra whisper --extra web --extra douyin   # 安装依赖（按需组合 extras）
-uv run playwright install chromium                     # 抖音解析需要的浏览器（仅首次）
+uv sync --extra faster-whisper --extra web --extra douyin   # 安装依赖（按需组合 extras）
+uv run playwright install chromium                     # 抖音解析需要的浏览器（仅本机无 Chrome 时）
+export HF_ENDPOINT=https://hf-mirror.com                # 国内下载 faster-whisper 模型
 uv run pytest -q                                       # 跑测试（也可 .venv/bin/python -m pytest -q）
 uv run video2text tx "<B站链接 / 抖音分享文本 / 本地文件>"
 uv run video2text ui                                    # 启动 Web，默认 http://127.0.0.1:8000
@@ -35,12 +36,12 @@ src/v2t/
   cli.py            CLI 入口（transcribe/batch/web/server/doctor/bootstrap/language）
   inputs.py         输入解析：本地文件 / B站 / 抖音分享文本 -> SourceRef
   models.py         数据类：SourceRef、DownloadResult、TranscriptResult、TranscriptDocument、TaskRecord...
-  factory.py        按 provider 组装 Transcriber，按 source.kind 选择 Downloader
+  factory.py        按 provider 组装 Transcriber（按配置缓存复用），按 source.kind 选择 Downloader
   pipeline.py       核心流程：下载 -> ffmpeg 抽 16k wav -> 转写 -> 写 txt + metadata json（含 segments）
   segments.py       segment 结构 {start, end, text}（秒）与归一化
   formatters.py     导出渲染：带时间戳 txt / plain / md / srt
   downloaders/      ytdlp.py（B站）、douyin.py（抖音）
-  transcribers/     whisper_local.py、sensevoice_local.py、volcengine.py
+  transcribers/     faster_whisper_local.py、whisper_local.py、sensevoice_local.py、volcengine.py
   tasks.py          线程池任务服务 + 进度回调
   progress.py       阶段进度（stage -> 总进度区间）
   library.py        把结果登记进视频库、管理转写稿版本
