@@ -16,14 +16,14 @@ from b2t.user_config import AppConfig
 def test_collect_required_extras_combines_providers_and_features() -> None:
     assert collect_required_extras(
         providers=["whisper", "volcengine"],
-        features=["web", "window"],
+        features=["web"],
     ) == ["whisper", "volcengine", "web", "douyin"]
 
 
-def test_collect_required_extras_excludes_window_extra() -> None:
+def test_collect_required_extras_deduplicates() -> None:
     assert collect_required_extras(
         providers=["sensevoice"],
-        features=["window", "server"],
+        features=["server", "server"],
     ) == ["sensevoice", "server", "douyin"]
 
 
@@ -78,7 +78,7 @@ def test_sync_selected_environment_runs_uv_sync(tmp_path: Path) -> None:
 def test_sync_environment_for_config_uses_saved_provider_and_feature_selection(tmp_path: Path) -> None:
     config = AppConfig()
     config.enabled_providers = ["sensevoice", "volcengine"]
-    config.enabled_features = ["window", "server"]
+    config.enabled_features = ["server"]
 
     calls: list[list[str]] = []
 

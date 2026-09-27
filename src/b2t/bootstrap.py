@@ -25,9 +25,8 @@ ALWAYS_EXTRAS = ("douyin",)
 def collect_required_extras(*, providers: list[str], features: list[str]) -> list[str]:
     extras: list[str] = []
     for name in [*providers, *features, *ALWAYS_EXTRAS]:
-        mapped = name if name != "window" else ""
-        if mapped and mapped not in extras:
-            extras.append(mapped)
+        if name and name not in extras:
+            extras.append(name)
     return extras
 
 
@@ -190,11 +189,6 @@ def run_bootstrap(*, settings: Settings, interactive: bool = True) -> AppConfig:
             "name": f"server    — {tr(lang, 'feature_server_short')}",
             "value": "server",
             "enabled": "server" in config.enabled_features,
-        },
-        {
-            "name": f"window    — {tr(lang, 'feature_window_short')}",
-            "value": "window",
-            "enabled": "window" in config.enabled_features,
         },
     ]
     config.enabled_features = inquirer.checkbox(

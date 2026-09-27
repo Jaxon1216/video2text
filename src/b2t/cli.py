@@ -230,31 +230,6 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         """Launch the server feature for Docker or LAN deployment."""
         _run_server(host=host, port=port, provider=provider, model=model, workspace=workspace)
 
-    @app.command("window", help=tr(language, "cmd_window_help"))
-    @app.command("win", hidden=True)
-    def window_mode(
-        provider: str | None = typer.Option(None, "--provider", help=tr(language, "opt_provider_help")),
-        model: str | None = typer.Option(None, "--model", help=tr(language, "opt_model_help")),
-        workspace: Path | None = typer.Option(None, "--workspace", help=tr(language, "opt_workspace_help")),
-    ) -> None:
-        """Launch the Tk window feature."""
-        from b2t.window_app import run_window
-
-        settings, config = _load_runtime(workspace=workspace, provider=provider, model=model)
-
-        run_window(
-            pipeline_factory=lambda selected_provider, selected_model, selected_workspace: build_pipeline(
-                settings=Settings.from_workspace(selected_workspace or settings.workspace_root),
-                config=config,
-                provider=selected_provider or provider or config.default_provider,
-                model=selected_model or model or config.default_model,
-            ),
-            default_provider=provider or config.default_provider,
-            default_model=model or config.default_model,
-            default_workspace=settings.workspace_root,
-            language=config.language,
-        )
-
     @app.command("language", help=tr(language, "cmd_language_help"))
     @app.command("lang", hidden=True)
     def language_command(

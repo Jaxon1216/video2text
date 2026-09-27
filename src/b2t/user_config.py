@@ -7,7 +7,7 @@ from b2t.config import Settings
 from b2t.i18n import DEFAULT_LANGUAGE, normalize_language
 
 ALL_PROVIDERS = ("whisper", "sensevoice", "volcengine")
-ALL_FEATURES = ("web", "server", "window")
+ALL_FEATURES = ("web", "server")
 
 
 @dataclass(slots=True)
@@ -31,7 +31,7 @@ class VolcengineConfig:
 class AppConfig:
     language: str = DEFAULT_LANGUAGE
     enabled_providers: list[str] = field(default_factory=lambda: ["whisper"])
-    enabled_features: list[str] = field(default_factory=lambda: ["window"])
+    enabled_features: list[str] = field(default_factory=lambda: ["web"])
     default_provider: str = "whisper"
     default_model: str = "small"
     sensevoice: SenseVoiceConfig = field(default_factory=SenseVoiceConfig)
@@ -47,7 +47,7 @@ class AppConfig:
         if enabled is None:
             # backwards compat: old configs only had default_provider
             enabled = [data.get("default_provider", "whisper")]
-        features = data.get("enabled_features", ["window"])
+        features = [name for name in data.get("enabled_features", ["web"]) if name in ALL_FEATURES]
         return cls(
             language=normalize_language(data.get("language")),
             enabled_providers=enabled,

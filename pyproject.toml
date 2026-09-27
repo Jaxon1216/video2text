@@ -45,8 +45,6 @@ server = [
   "python-multipart>=0.0.20",
   "uvicorn>=0.34.0",
 ]
-window = []
-
 [project.scripts]
 bili2text = "b2t.cli:main"
 
