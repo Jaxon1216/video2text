@@ -165,3 +165,8 @@ cython_debug/
 # video2text workspace (transcripts, downloads, config with API keys)
 .v2t/
 cookies.txt
+
+# Web frontend
+web/node_modules/
+web/dist/
+*.tsbuildinfo

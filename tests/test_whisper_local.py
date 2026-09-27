@@ -11,7 +11,7 @@ def test_build_whisper_import_error_message_reports_missing_install() -> None:
     )
 
     assert "Whisper support is not installed." in message
-    assert "uv sync --extra whisper --extra web" in message
+    assert "uv sync --extra faster-whisper --extra web --extra douyin" in message
 
 
 def test_build_whisper_import_error_message_reports_broken_environment() -> None:

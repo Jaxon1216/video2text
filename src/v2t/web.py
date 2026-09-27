@@ -1,21 +1,36 @@
 from __future__ import annotations
 
+import os
 from dataclasses import asdict
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel
 
 from v2t.database import AppDatabase
 from v2t.formatters import export_document
-from v2t.i18n import tr
-from v2t.inputs import parse_source_list, safe_stem
+from v2t.inputs import parse_source, parse_source_list, safe_stem
 from v2t.library import WorkspaceLibrary
 from v2t.models import TaskRecord, TranscriptDocument
 from v2t.tasks import TaskService
+from v2t.user_config import ALL_PROVIDERS
+
+DEFAULT_WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
+FRONTEND_MISSING_HTML = """<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>video2text</title>
+<body style="font-family: serif; max-width: 40rem; margin: 4rem auto; line-height: 1.8">
+<h1>前端还没有构建</h1>
+<p>API 已在运行（<a href="/docs">/docs</a>）。构建一次 Web 界面：</p>
+<pre>cd web &amp;&amp; npm install &amp;&amp; npm run build</pre>
+<p>开发时也可以运行 <code>npm run dev</code>，打开 Vite 给出的地址。</p>
+</body></html>"""
+
+
+def resolve_web_dist() -> Path | None:
+    override = os.getenv("V2T_WEB_DIST")
+    path = Path(override).expanduser() if override else DEFAULT_WEB_DIST
+    return path if (path / "index.html").is_file() else None
 
 
 class TranscribeTaskRequest(BaseModel):
@@ -54,168 +69,15 @@ def create_app(
     database: AppDatabase,
     default_provider: str = "faster-whisper",
     default_model: str = "small",
-    language: str = "zh-CN",
+    enabled_providers: list[str] | None = None,
+    web_dist: Path | None = None,
 ) -> FastAPI:
-    templates = Jinja2Templates(directory=str(Path(__file__).with_name("templates")))
     app = FastAPI(title="video2text")
-
-    @app.get("/", response_class=HTMLResponse)
-    async def index(request: Request) -> HTMLResponse:
-        return templates.TemplateResponse(
-            request,
-            "index.html",
-            {
-                "error": None,
-                "values": {
-                    "source": "",
-                    "provider": default_provider,
-                    "model": default_model,
-                    "prompt": "",
-                },
-                "videos": database.list_videos(),
-                "lang": language,
-                "t": lambda key, **kwargs: tr(language, key, **kwargs),
-            },
-        )
-
-    @app.post("/transcribe", response_class=HTMLResponse)
-    async def transcribe_from_form(
-        request: Request,
-        source: str = Form(...),
-        provider: str = Form("faster-whisper"),
-        model: str = Form("small"),
-        prompt: str = Form(""),
-    ) -> HTMLResponse:
-        try:
-            sources = parse_source_list(source)
-        except ValueError as exc:
-            return templates.TemplateResponse(
-                request,
-                "index.html",
-                {
-                    "error": str(exc),
-                    "values": {
-                        "source": source,
-                        "provider": provider,
-                        "model": model,
-                        "prompt": prompt,
-                    },
-                    "videos": database.list_videos(),
-                    "lang": language,
-                    "t": lambda key, **kwargs: tr(language, key, **kwargs),
-                },
-                status_code=400,
-            )
-
-        tasks = _submit_transcription_tasks(
-            task_service,
-            sources=sources,
-            provider=provider,
-            model=model,
-            prompt=prompt,
-        )
-        if len(tasks) > 1:
-            return templates.TemplateResponse(
-                request,
-                "batch.html",
-                {
-                    "tasks": [asdict(task) for task in tasks],
-                    "lang": language,
-                    "t": lambda key, **kwargs: tr(language, key, **kwargs),
-                },
-            )
-
-        task = tasks[0]
-        return templates.TemplateResponse(
-            request,
-            "task.html",
-            {
-                "task_id": task.id,
-                "lang": language,
-                "t": lambda key, **kwargs: tr(language, key, **kwargs),
-            },
-        )
-
-    @app.get("/tasks/batch", response_class=HTMLResponse)
-    async def batch_task_page(request: Request, ids: str = Query("")) -> HTMLResponse:
-        task_ids = [task_id.strip() for task_id in ids.split(",") if task_id.strip()]
-        tasks = []
-        for task_id in task_ids:
-            task = database.get_task(task_id)
-            if task is not None:
-                tasks.append(asdict(task))
-        return templates.TemplateResponse(
-            request,
-            "batch.html",
-            {
-                "tasks": tasks,
-                "lang": language,
-                "t": lambda key, **kwargs: tr(language, key, **kwargs),
-            },
-        )
-
-    @app.get("/tasks/{task_id}", response_class=HTMLResponse)
-    async def task_page(request: Request, task_id: str) -> HTMLResponse:
-        task = database.get_task(task_id)
-        if task is None:
-            raise HTTPException(status_code=404, detail="task not found")
-        return templates.TemplateResponse(
-            request,
-            "task.html",
-            {
-                "task_id": task_id,
-                "task": asdict(task),
-                "lang": language,
-                "t": lambda key, **kwargs: tr(language, key, **kwargs),
-            },
-        )
-
-    @app.get("/videos/{video_id}", response_class=HTMLResponse)
-    async def video_page(request: Request, video_id: int) -> HTMLResponse:
-        video = database.get_video(video_id)
-        if video is None:
-            raise HTTPException(status_code=404, detail="video not found")
-        transcript = library.load_active_transcript(video_id)
-        versions = [asdict(version) for version in database.list_transcript_versions(video_id)]
-        return templates.TemplateResponse(
-            request,
-            "video.html",
-            {
-                "video": video,
-                "transcript": transcript,
-                "versions": versions,
-                "categories": database.list_categories(),
-                "tags": database.list_tags(),
-                "lang": language,
-                "t": lambda key, **kwargs: tr(language, key, **kwargs),
-            },
-        )
-
-    @app.post("/videos/{video_id}/edit")
-    async def edit_video_transcript(video_id: int, text: str = Form(...)) -> RedirectResponse:
-        library.save_edited_transcript(video_id, text)
-        return RedirectResponse(url=f"/videos/{video_id}", status_code=303)
-
-    @app.post("/videos/{video_id}/category")
-    async def assign_video_category(video_id: int, category_name: str = Form("")) -> RedirectResponse:
-        category_name = category_name.strip()
-        category_id = None
-        if category_name:
-            category = database.create_category(category_name)
-            category_id = int(category["id"])
-        database.assign_category(video_id, category_id)
-        return RedirectResponse(url=f"/videos/{video_id}", status_code=303)
-
-    @app.post("/videos/{video_id}/tags")
-    async def add_video_tag(video_id: int, tag_name: str = Form("")) -> RedirectResponse:
-        tag_name = tag_name.strip()
-        if tag_name:
-            tag = database.create_tag(tag_name)
-            database.add_video_tag(video_id, int(tag["id"]))
-        return RedirectResponse(url=f"/videos/{video_id}", status_code=303)
+    dist = web_dist if web_dist is not None else resolve_web_dist()
 
     @app.post("/api/tasks/transcribe")
     async def create_transcription_task(payload: TranscribeTaskRequest) -> JSONResponse:
+        _validate_sources([payload.source])
         task = task_service.submit_transcription(
             source=payload.source,
             provider=payload.provider,
@@ -233,6 +95,7 @@ def create_app(
             sources = parse_source_list("\n".join(source_chunks))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _validate_sources(sources)
         tasks = _submit_transcription_tasks(
             task_service,
             sources=sources,
@@ -449,7 +312,39 @@ def create_app(
     async def health() -> JSONResponse:
         return JSONResponse({"status": "ok"})
 
+    @app.get("/api/config")
+    async def get_config() -> JSONResponse:
+        return JSONResponse(
+            {
+                "default_provider": default_provider,
+                "default_model": default_model,
+                "providers": list(ALL_PROVIDERS),
+                "enabled_providers": enabled_providers or [default_provider],
+            }
+        )
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_frontend(full_path: str) -> Response:
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="not found")
+        if dist is None:
+            return HTMLResponse(FRONTEND_MISSING_HTML, status_code=503)
+        root = dist.resolve()
+        candidate = (root / full_path).resolve()
+        if full_path and candidate.is_file() and candidate.is_relative_to(root):
+            return FileResponse(candidate)
+        # Client-side routes such as /videos/3 all render the same index.html.
+        return FileResponse(root / "index.html")
+
     return app
+
+
+def _validate_sources(sources: list[str]) -> None:
+    for source in sources:
+        try:
+            parse_source(source)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"无法识别的输入：{source[:80]}（{exc}）") from exc
 
 
 def _submit_transcription_tasks(

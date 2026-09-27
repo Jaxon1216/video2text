@@ -336,7 +336,7 @@ def _run_server(*, host: str, port: int, provider: str | None, model: str | None
         database=service.database,
         default_provider=provider or config.default_provider,
         default_model=model or config.default_model,
-        language=config.language,
+        enabled_providers=config.enabled_providers,
     )
     uvicorn.run(app_instance, host=host, port=port)
 

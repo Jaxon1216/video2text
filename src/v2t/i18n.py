@@ -36,7 +36,7 @@ MESSAGES: dict[str, dict[str, str]] = {
 
         # ── Runtime messages ─────────────────────────────────
         "missing_dependency": "缺少依赖 '{name}'。{guidance}",
-        "dependency_sync_guidance": "请把所有需要的 extras 写在同一条命令里，例如 `uv sync --extra whisper --extra web`；如果之前跑过 Bootstrap，直接 `uv run video2text bootstrap --sync-only` 也行。",
+        "dependency_sync_guidance": "请把所有需要的 extras 写在同一条命令里，例如 `uv sync --extra faster-whisper --extra web --extra douyin`；如果之前跑过 Bootstrap，直接 `uv run video2text bootstrap --sync-only` 也行。",
         "transcript_saved": "转写结果已保存: {path}",
         "metadata_saved": "元数据已保存: {path}",
         "export_saved": "导出文件已保存: {path}",
@@ -138,27 +138,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "unsupported_language": "不支持的语言: {language}",
 
 
-        # ── Web ──────────────────────────────────────────────
-        "web_title": "video2text",
-        "web_subtitle": "B站 / 抖音视频转文字",
-        "web_error": "出错了",
-        "web_form_title": "开始转写",
-        "web_source": "B站 / 抖音链接或分享文本 / 本地路径（可多行）",
-        "web_provider": "转写引擎",
-        "web_model": "模型",
-        "web_prompt": "提示词",
-        "web_submit": "开始",
-        "web_batch_submitted": "已提交 {count} 个任务",
-        "web_result_title": "转写完成",
-        "web_back_home": "返回首页",
-        "web_result_files": "输出文件",
-        "web_result_provider": "转写引擎",
-        "web_result_model": "模型",
-        "web_result_transcript": "文本文件",
-        "web_result_metadata": "元数据",
-        "web_result_audio": "音频",
-        "web_result_video": "视频",
-        "web_result_text": "文本内容",
 
         # ── Progress ─────────────────────────────────────────
         "progress_stage_queued": "已排队",
@@ -207,7 +186,7 @@ MESSAGES: dict[str, dict[str, str]] = {
 
         # ── Runtime messages ─────────────────────────────────
         "missing_dependency": "Missing dependency '{name}'. {guidance}",
-        "dependency_sync_guidance": "Put all the extras you need in one command, e.g. `uv sync --extra whisper --extra web`. Or just run `uv run video2text bootstrap --sync-only` if you've already been through the setup.",
+        "dependency_sync_guidance": "Put all the extras you need in one command, e.g. `uv sync --extra faster-whisper --extra web --extra douyin`. Or just run `uv run video2text bootstrap --sync-only` if you've already been through the setup.",
         "transcript_saved": "Transcript saved: {path}",
         "metadata_saved": "Metadata saved: {path}",
         "export_saved": "Export saved: {path}",
@@ -309,27 +288,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "unsupported_language": "Unsupported language: {language}",
 
 
-        # ── Web ──────────────────────────────────────────────
-        "web_title": "video2text",
-        "web_subtitle": "Bilibili / Douyin video to text",
-        "web_error": "Error",
-        "web_form_title": "Transcribe",
-        "web_source": "Bilibili / Douyin URL or share text / local path (one per line)",
-        "web_provider": "Engine",
-        "web_model": "Model",
-        "web_prompt": "Prompt",
-        "web_submit": "Start",
-        "web_batch_submitted": "Submitted {count} tasks",
-        "web_result_title": "Transcription Complete",
-        "web_back_home": "Back to Home",
-        "web_result_files": "Output Files",
-        "web_result_provider": "Engine",
-        "web_result_model": "Model",
-        "web_result_transcript": "Transcript",
-        "web_result_metadata": "Metadata",
-        "web_result_audio": "Audio",
-        "web_result_video": "Video",
-        "web_result_text": "Transcript Text",
 
         # ── Progress ─────────────────────────────────────────
         "progress_stage_queued": "Queued",

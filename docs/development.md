@@ -23,6 +23,17 @@ uv run video2text tx "<输入>" --workspace /tmp/v2t-dev   # 用临时工作区�
 uv run video2text ui --port 8765       # Web 调试
 ```
 
+## 前端
+
+```bash
+cd web
+npm install
+npm run dev      # http://localhost:5173，/api 代理到 127.0.0.1:8000（先启动 uv run video2text ui）
+npm run build    # 产物在 web/dist，由 FastAPI 托管
+```
+
+后端地址不是 8000 时用 `V2T_BACKEND=http://127.0.0.1:8765 npm run dev`。`web/dist` 和 `node_modules` 不进 git。
+
 ## 配置
 
 - 工作区默认 `./.v2t`（`V2T_HOME` 或 `--workspace` 覆盖），里面的 `config.json` 保存默认引擎和云 ASR key，已被 `.gitignore` 忽略。

@@ -2,7 +2,7 @@
 
 ## 总览
 
-CLI 优先的 Python 包。CLI、Web 只是外壳，全部通过 `TaskService` 提交任务，由统一的 `V2TPipeline` 执行。
+CLI 优先的 Python 包。CLI、Web 只是外壳，全部通过 `TaskService` 提交任务，由统一的 `V2TPipeline` 执行。Web 由 FastAPI（`/api/*`）和 `web/` 下的 React SPA 组成，FastAPI 直接托管 SPA 的构建产物，只需要一个进程。
 
 ```mermaid
 flowchart LR
@@ -45,7 +45,8 @@ flowchart LR
 | `progress.py` | 各阶段占总进度的区间：preparing / downloading / extracting_audio / transcribing / writing_outputs / indexing |
 | `library.py` | 登记结果、编辑后另存新版本、启动时扫描工作区补索引 |
 | `database.py` | SQLite 表结构与查询 |
-| `web.py` | FastAPI：HTML 页面 + `/api/*`（接口见 `docs/api.md`） |
+| `web.py` | FastAPI：`/api/*`（接口见 `docs/api.md`）+ 托管 `web/dist`，非 API 路径回退到 `index.html`；没构建时返回提示页 |
+| `web/`（前端） | React SPA：首页（粘贴链接、处理中任务、历史）、任务进度页（1 秒轮询）、文字稿页（时间戳分段、Copy for AI、下载） |
 | `user_config.py` / `bootstrap.py` | `config.json` 读写与首次配置向导 |
 
 ## 工作区目录
@@ -84,6 +85,7 @@ flowchart LR
 | `V2T_LANG` | 界面语言 |
 | `V2T_COOKIE_FILE` | B站 cookies.txt 路径（默认 `<工作区>/cookies.txt`） |
 | `V2T_USE_PROXY` | B站下载是否走系统代理（默认直连） |
+| `V2T_WEB_DIST` | 前端构建产物目录（默认仓库里的 `web/dist`） |
 | `V2T_TASK_WORKERS` | 同时执行的任务数（默认 1；只用云 ASR 时可调大） |
 | `HF_ENDPOINT` | HuggingFace 镜像，国内下载 faster-whisper 模型用 `https://hf-mirror.com` |
 | `V2T_DOUYIN_HEADLESS` | 抖音解析是否用无头浏览器（默认 `1`） |

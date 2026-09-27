@@ -38,7 +38,7 @@ class FakePipeline:
         )
 
 
-def build_test_app(tmp_path: Path):
+def build_test_app(tmp_path: Path, web_dist: Path | None = None):
     settings = Settings.from_workspace(tmp_path / ".v2t")
     database = AppDatabase(settings)
     library = WorkspaceLibrary(settings, database)
@@ -53,20 +53,55 @@ def build_test_app(tmp_path: Path):
         database=database,
         default_provider="sensevoice",
         default_model="base",
-        language="zh-CN",
+        enabled_providers=["sensevoice", "volcengine"],
+        web_dist=web_dist,
     )
     return app, service, database, library
 
 
-def test_index_page_renders_form_and_video_list(tmp_path: Path) -> None:
-    app, _, _, _ = build_test_app(tmp_path)
+def test_frontend_is_served_with_history_fallback(tmp_path: Path) -> None:
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<div id=root></div>", encoding="utf-8")
+    (dist / "assets" / "app.js").write_text("console.log(1)", encoding="utf-8")
+    app, _, _, _ = build_test_app(tmp_path, web_dist=dist)
     client = TestClient(app)
 
-    response = client.get("/")
-    assert response.status_code == 200
-    assert "B站 / 抖音视频转文字" in response.text
-    assert 'value="sensevoice"' in response.text
-    assert "Videos" in response.text
+    assert client.get("/").text == "<div id=root></div>"
+    assert client.get("/videos/3").text == "<div id=root></div>"
+    assert client.get("/assets/app.js").text == "console.log(1)"
+    assert client.get("/../../etc/passwd").text == "<div id=root></div>"
+    assert client.get("/api/unknown").status_code == 404
+    assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_missing_frontend_shows_build_hint(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("V2T_WEB_DIST", str(tmp_path / "nowhere"))
+    app, _, _, _ = build_test_app(tmp_path)
+    response = TestClient(app).get("/")
+    assert response.status_code == 503
+    assert "npm run build" in response.text
+
+
+def test_api_config_exposes_provider_defaults(tmp_path: Path) -> None:
+    app, _, _, _ = build_test_app(tmp_path)
+    config = TestClient(app).get("/api/config").json()
+    assert config["default_provider"] == "sensevoice"
+    assert config["default_model"] == "base"
+    assert config["enabled_providers"] == ["sensevoice", "volcengine"]
+    assert "faster-whisper" in config["providers"]
+
+
+def test_api_rejects_unrecognized_source(tmp_path: Path) -> None:
+    app, service, _, _ = build_test_app(tmp_path)
+    client = TestClient(app)
+
+    response = client.post("/api/tasks/transcribe", json={"source": "https://example.com/watch?v=1"})
+    assert response.status_code == 400
+    assert "无法识别的输入" in response.json()["detail"]
+    batch = client.post("/api/tasks/batch", json={"source_text": "BV1xx411c7XD\nnot a link"})
+    assert batch.status_code == 400
+    assert service.list_tasks() == []
 
 
 def test_api_transcribe_returns_task_and_video_can_be_edited(tmp_path: Path) -> None:
@@ -133,28 +168,6 @@ def test_api_batch_transcribe_returns_multiple_tasks(tmp_path: Path) -> None:
     for item in payload["items"]:
         task = service.wait_for_task(item["id"])
         assert task.status == "completed"
-
-
-def test_form_batch_transcribe_renders_batch_page(tmp_path: Path) -> None:
-    app, service, _, _ = build_test_app(tmp_path)
-    client = TestClient(app)
-
-    response = client.post(
-        "/transcribe",
-        data={
-            "source": "BV1xx411c7XD\nBV1yy411c7XD",
-            "provider": "whisper",
-            "model": "small",
-            "prompt": "",
-        },
-    )
-
-    assert response.status_code == 200
-    assert "已提交 2 个任务" in response.text
-    assert "BV1xx411c7XD" in response.text
-    assert "BV1yy411c7XD" in response.text
-    for task in service.list_tasks():
-        service.wait_for_task(task.id)
 
 
 def test_api_supports_categories_tags_and_versions(tmp_path: Path) -> None:

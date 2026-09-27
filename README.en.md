@@ -38,6 +38,7 @@ uv run playwright install chromium
 
 uv run video2text tx "https://www.bilibili.com/video/BV1xx411c7XD"
 uv run video2text tx "https://v.douyin.com/xxxx/"
+(cd web && npm install && npm run build)   # build the web UI once
 uv run video2text ui   # http://127.0.0.1:8000
 ```
 

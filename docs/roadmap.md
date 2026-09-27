@@ -9,7 +9,7 @@
 | 2 | 减法与全面改名：删 Tk 窗口 / archive / 原作者素材；b2t -> v2t，bili2text -> video2text | 完成 |
 | 3 | 时间戳 segments 与导出（带时间戳 TXT / Markdown / SRT，导出 API，CLI `--format`） | 完成 |
 | 4 | faster-whisper 引擎 + transcriber 缓存 + 任务并发可配置 | 完成 |
-| 5 | React SPA（Copy for AI），跑通后删除 Jinja 页面 | 待办 |
+| 5 | React SPA（Copy for AI），跑通后删除 Jinja 页面 | 完成 |
 | 6 | B站字幕优先（拿不到再 ASR）+ b23.tv 短链 | 待办 |
 | 7 | ASR 评测脚本：CER、术语召回、RTF、成本 | 待办 |
 | 8 | Docker（可选） | 待办 |
