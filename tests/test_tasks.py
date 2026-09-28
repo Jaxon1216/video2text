@@ -55,3 +55,22 @@ def test_task_service_runs_background_transcription_and_indexes_result(tmp_path:
     videos = database.list_videos()
     assert len(videos) == 1
     assert videos[0]["title"] == "Demo Task"
+
+
+def test_task_stage_logs_do_not_repeat_for_percentage_updates(tmp_path, caplog):
+    import logging
+    from v2t.progress import ProgressReporter
+
+    settings = Settings.from_workspace(tmp_path)
+    database = AppDatabase(settings)
+    service = TaskService(database=database, library=WorkspaceLibrary(settings, database), pipeline_factory=None)
+    task = database.create_task(kind="transcription", source_input="demo", provider="whisper", model="small")
+    reporter = ProgressReporter(task.id, callback=service._handle_progress)
+    with caplog.at_level(logging.INFO, logger="v2t.tasks"):
+        reporter.running("transcribing", stage_progress=0.1)
+        reporter.running("transcribing", stage_progress=0.9)
+        reporter.failed("recognition failed")
+    assert len(caplog.records) == 2
+    assert "transcribing" in caplog.records[0].message
+    assert "recognition failed" in caplog.records[1].message
+    assert caplog.records[1].levelno == logging.ERROR

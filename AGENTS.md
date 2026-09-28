@@ -48,6 +48,7 @@ src/v2t/
   downloaders/      ytdlp.py（B站：短链解析、字幕优先）、douyin.py（抖音）
   transcribers/     faster_whisper_local.py、whisper_local.py、sensevoice_local.py、volcengine.py
   tasks.py          线程池任务服务 + 进度回调
+  logging_config.py 正常轮询 access log 过滤与任务日志配置
   progress.py       阶段进度（stage -> 总进度区间）
   library.py        把结果登记进视频库、管理转写稿版本
   database.py       SQLite：tasks / task_progress_events / videos / transcript_versions / tags / categories

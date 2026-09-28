@@ -5,6 +5,7 @@ import { Link } from "../router";
 
 export function TasksPage() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     let timer: number | undefined;
@@ -13,9 +14,13 @@ export function TasksPage() {
         const items = await listTasks();
         if (cancelled) return;
         setTasks(items);
+        setError(null);
         timer = window.setTimeout(poll, items.some(t => ["queued", "running"].includes(t.status)) ? 1500 : 6000);
-      } catch {
-        if (!cancelled) timer = window.setTimeout(poll, 6000);
+      } catch (err) {
+        if (!cancelled) {
+          setError(`连接中断，正在重试：${(err as Error).message}`);
+          timer = window.setTimeout(poll, 6000);
+        }
       }
     };
     poll();
@@ -25,7 +30,8 @@ export function TasksPage() {
     <section className="page">
       <h1 className="headline">任务</h1>
       <p className="notice">查看处理进度，也可以回到失败的任务重试。</p>
-      {tasks === null ? <p className="muted">加载中…</p> : tasks.length === 0 ? <p className="empty muted">还没有任务。<Link href="/">新建转写</Link></p> : (
+      {error && <p className="error" role="status">{error}</p>}
+      {tasks === null ? (!error && <p className="muted">加载中…</p>) : tasks.length === 0 ? <p className="empty muted">还没有任务。<Link href="/">新建转写</Link></p> : (
         <ul className="task-list">
           {tasks.map(task => (
             <li key={task.id}>

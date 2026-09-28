@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import logging
 from concurrent.futures import Future, ThreadPoolExecutor
 from threading import Lock
 from typing import Callable
@@ -13,6 +14,7 @@ from v2t.progress import ProgressCallback, ProgressReporter
 
 
 PipelineFactory = Callable[[str, str], V2TPipeline]
+logger = logging.getLogger(__name__)
 
 
 def task_workers_from_env(default: int = 1) -> int:
@@ -33,6 +35,7 @@ class TaskService:
         self._listeners: dict[str, list[ProgressCallback]] = {}
         self._futures: dict[str, Future[object]] = {}
         self._lock = Lock()
+        self._logged_stages: dict[str, tuple[str, str]] = {}
 
     def ensure_indexed(self) -> None:
         self.library.index_existing_workspace()
@@ -99,6 +102,14 @@ class TaskService:
     def _handle_progress(self, snapshot) -> None:  # type: ignore[no-untyped-def]
         self.database.record_progress(snapshot)
         with self._lock:
+            state = (snapshot.status, snapshot.stage)
+            changed = self._logged_stages.get(snapshot.task_id) != state
+            self._logged_stages[snapshot.task_id] = state
+            if snapshot.status in ("completed", "failed", "cancelled"):
+                self._logged_stages.pop(snapshot.task_id, None)
             callbacks = list(self._listeners.get(snapshot.task_id, []))
+        if changed:
+            logger.log(logging.ERROR if snapshot.status == "failed" else logging.INFO,
+                       "task=%s stage=%s %s", snapshot.task_id, snapshot.stage, snapshot.message)
         for callback in callbacks:
             callback(snapshot)

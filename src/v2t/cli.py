@@ -346,7 +346,9 @@ def _run_server(*, host: str, port: int, provider: str | None, model: str | None
         default_model=model or config.default_model,
         enabled_providers=config.enabled_providers,
     )
-    uvicorn.run(app_instance, host=host, port=port)
+    from v2t.logging_config import server_log_config
+
+    uvicorn.run(app_instance, host=host, port=port, log_config=server_log_config())
 
 
 def _detect_preferred_language(workspace: Path | None = None) -> str:

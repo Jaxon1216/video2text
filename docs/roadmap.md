@@ -28,7 +28,7 @@
 ### 任务与进度
 
 5. **任务启动后可以中断。** `TaskStatus` 已有 `cancelled`，但 `TaskService` 没有取消方法，`web.py` 也没有对应接口；首页「处理中」和任务页只能等它跑完。排队中的应直接标取消；进行中的要能停掉当前阶段（下载、抽音频、识别）。涉及 `src/v2t/tasks.py`、`src/v2t/web.py`、`web/src/pages/TaskPage.tsx`、首页任务列表。
-6. **轮询要有前端反馈，终端不要刷 access log。** 首页一直在轮询 `GET /api/tasks`（有进行中任务 1.5 秒，否则 6 秒，`HomePage.tsx`）；任务页每 1 秒轮询一次（`TaskPage.tsx`）。`uvicorn.run`（`cli.py` 的 `_run_server`）默认打开 access log，所以 `video2text ui` 开着页面就会不停打 `GET /api/tasks 200`。期望：轮询到的状态在页面上看得见（进度、失败、后端连不上）；这类轮询不要进 access log。任务阶段、失败和启动信息仍然打日志。
+6. **轮询反馈与日志降噪（完成）。** 断连保留进度并重试，404 与处理失败分开展示；任务列表保留失败记录。只过滤正常轮询 access log，保留阶段、失败与启动日志。
 
 ### 识别
 
