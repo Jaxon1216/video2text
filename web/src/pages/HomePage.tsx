@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { getConfig, listTasks, listVideos, submitSources, type AppConfig, type Task, type VideoItem } from "../api";
-import { PLATFORM_LABELS, PROVIDER_LABELS, formatDate, stageLabel } from "../format";
-import { Link, navigate } from "../router";
+import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
+import { getConfig, submitSources, type AppConfig } from "../api";
+import { PROVIDER_LABELS } from "../format";
+import { navigate } from "../router";
 
-const ACTIVE: Task["status"][] = ["queued", "running"];
 
 export function HomePage() {
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -14,12 +13,6 @@ export function HomePage() {
   const [showOptions, setShowOptions] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [videos, setVideos] = useState<VideoItem[] | null>(null);
-  const [query, setQuery] = useState("");
-  const queryRef = useRef(query);
-  queryRef.current = query;
-
   useEffect(() => {
     getConfig()
       .then((loaded) => {
@@ -28,37 +21,6 @@ export function HomePage() {
         setModel(loaded.default_model);
       })
       .catch((err: Error) => setError(`无法连接后端：${err.message}`));
-  }, []);
-
-  useEffect(() => {
-    const handle = window.setTimeout(() => {
-      listVideos(query).then(setVideos).catch(() => setVideos([]));
-    }, 200);
-    return () => window.clearTimeout(handle);
-  }, [query]);
-
-  const activeTasks = useMemo(() => tasks.filter((task) => ACTIVE.includes(task.status)), [tasks]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let timer: number | undefined;
-    const poll = async () => {
-      try {
-        const all = await listTasks();
-        if (cancelled) return;
-        setTasks(all);
-        const stillActive = all.some((task) => ACTIVE.includes(task.status));
-        if (!stillActive) listVideos(queryRef.current).then(setVideos).catch(() => undefined);
-        timer = window.setTimeout(poll, stillActive ? 1500 : 6000);
-      } catch {
-        timer = window.setTimeout(poll, 6000);
-      }
-    };
-    poll();
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
   }, []);
 
   const providers = config?.providers ?? [];
@@ -72,7 +34,7 @@ export function HomePage() {
       const ids = await submitSources(source, { provider, model, prompt });
       setSource("");
       if (ids.length === 1) navigate(`/tasks/${ids[0]}`);
-      else setTasks(await listTasks());
+      else navigate("/tasks");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -86,6 +48,8 @@ export function HomePage() {
 
   return (
     <section className="page">
+      <h1 className="headline">新建转写</h1>
+      <p className="notice">粘贴视频链接，留下一份可以继续提问的文字。</p>
       <form className="intake" onSubmit={submit}>
         <label className="kicker" htmlFor="source">
           粘贴链接
@@ -143,51 +107,6 @@ export function HomePage() {
         {error && <p className="error">{error}</p>}
       </form>
 
-      {activeTasks.length > 0 && (
-        <section className="section">
-          <h2 className="section-title">处理中</h2>
-          <ul className="task-list">
-            {activeTasks.map((task) => (
-              <li key={task.id}>
-                <Link href={`/tasks/${task.id}`} className="task-row">
-                  <span className="task-source">{task.source_input}</span>
-                  <span className="task-stage">{stageLabel(task.current_stage)}</span>
-                  <span className="meter" aria-hidden>
-                    <span style={{ width: `${Math.round(task.progress_percent * 100)}%` }} />
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <section className="section">
-        <div className="section-head">
-          <h2 className="section-title">文字稿</h2>
-          <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题" />
-        </div>
-        {videos === null ? (
-          <p className="muted">加载中…</p>
-        ) : videos.length === 0 ? (
-          <p className="muted empty">{query ? "没有匹配的文字稿" : "还没有文字稿。粘贴第一个链接试试。"}</p>
-        ) : (
-          <ol className="library">
-            {videos.map((video, index) => (
-              <li key={video.id} style={{ animationDelay: `${Math.min(index, 12) * 30}ms` }}>
-                <Link href={`/videos/${video.id}`} className="library-item">
-                  <span className="library-title">{video.title}</span>
-                  <span className="library-meta">
-                    <span className={`tag tag-${video.source_kind}`}>{PLATFORM_LABELS[video.source_kind] ?? video.source_kind}</span>
-                    <span>{formatDate(video.created_at)}</span>
-                    <span>{video.engine}</span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
     </section>
   );
 }

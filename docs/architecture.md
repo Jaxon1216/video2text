@@ -46,7 +46,7 @@ flowchart LR
 | `library.py` | 登记结果、编辑后另存新版本、启动时扫描工作区补索引 |
 | `database.py` | SQLite 表结构与查询 |
 | `web.py` | FastAPI：`/api/*`（接口见 `docs/api.md`）+ 托管 `web/dist`，非 API 路径回退到 `index.html`；没构建时返回提示页 |
-| `web/`（前端） | React SPA：首页（粘贴链接、处理中任务、历史）、任务进度页（1 秒轮询）、文字稿页（时间戳分段、Copy for AI、下载） |
+| `web/`（前端） | React SPA：新建转写 `/`、任务列表 `/tasks`、文字稿列表 `/videos`；保留任务与文字稿详情。单条提交进入任务详情，批量进入任务列表；完成后跳转文字稿并提示保存成功 |
 | `user_config.py` / `bootstrap.py` | `config.json` 读写与首次配置向导 |
 
 ## 工作区目录

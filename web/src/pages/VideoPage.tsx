@@ -56,7 +56,7 @@ export function VideoPage({ videoId }: { videoId: number }) {
         <p className="kicker">文字稿</p>
         <h1 className="headline">打不开这份文字稿</h1>
         <p className="error">{error}</p>
-        <Link href="/">回到首页</Link>
+        <Link href="/videos">返回文字稿列表</Link>
       </section>
     );
   }
@@ -67,9 +67,10 @@ export function VideoPage({ videoId }: { videoId: number }) {
 
   return (
     <article className="page reader">
-      <Link href="/" className="back">
+      <Link href="/videos" className="back">
         ← 全部文字稿
       </Link>
+      {window.history.state?.transcriptionCompleted && <p className="notice" role="status">转写完成，文字稿已保存。</p>}
       <header className="reader-head">
         <p className="kicker">
           <span className={`tag tag-${document.platform}`}>{PLATFORM_LABELS[document.platform] ?? document.platform}</span>

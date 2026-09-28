@@ -2,9 +2,9 @@ import { useEffect, useState, type AnchorHTMLAttributes, type MouseEvent } from 
 
 const NAVIGATE_EVENT = "v2t:navigate";
 
-export function navigate(to: string, { replace = false } = {}): void {
-  if (replace) window.history.replaceState(null, "", to);
-  else window.history.pushState(null, "", to);
+export function navigate(to: string, { replace = false, state = null }: { replace?: boolean; state?: unknown } = {}): void {
+  if (replace) window.history.replaceState(state, "", to);
+  else window.history.pushState(state, "", to);
   window.dispatchEvent(new Event(NAVIGATE_EVENT));
   window.scrollTo({ top: 0 });
 }

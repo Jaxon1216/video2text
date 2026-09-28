@@ -810,3 +810,11 @@ a.stamp:hover {
     gap: 0.3rem;
   }
 }
+
+.main-nav { display: flex; flex-wrap: wrap; gap: 1.5rem; font-size: 0.95rem; }
+.main-nav a { color: var(--ink-soft); text-decoration: none; padding: 0.25rem 0; }
+.main-nav a[aria-current="page"] { color: var(--cinnabar); border-bottom: 2px solid currentColor; }
+.task-meta { display: block; color: var(--ink-faint); font-size: 0.75rem; }
+.task-percent { font-family: var(--mono); font-size: 0.8rem; text-align: right; }
+.task-error { color: var(--cinnabar); margin: 0.25rem 0 1rem; font-size: 0.85rem; overflow-wrap: anywhere; }
+:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 4px; }

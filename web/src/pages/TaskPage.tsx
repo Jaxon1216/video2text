@@ -17,7 +17,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
         if (cancelled) return;
         setTask(latest);
         if (latest.status === "completed" && latest.video_id !== null) {
-          navigate(`/videos/${latest.video_id}`, { replace: true });
+          navigate(`/videos/${latest.video_id}`, { replace: true, state: { transcriptionCompleted: true } });
           return;
         }
         if (latest.status !== "failed" && latest.status !== "cancelled") timer = window.setTimeout(poll, 1000);
@@ -50,7 +50,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
         <p className="kicker">任务</p>
         <h1 className="headline">找不到这个任务</h1>
         <p className="error">{error}</p>
-        <Link href="/">回到首页</Link>
+        <Link href="/tasks">返回任务列表</Link>
       </section>
     );
   }
@@ -62,6 +62,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
 
   return (
     <section className="page narrow">
+      <Link href="/tasks" className="back">← 全部任务</Link>
       <p className="kicker">{failed ? "处理失败" : "正在处理"}</p>
       <h1 className="headline source-line">{task?.source_input ?? "…"}</h1>
       <p className="muted">
@@ -100,8 +101,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
             <button className="primary" onClick={retry} disabled={retrying}>
               {retrying ? "重新提交中…" : "重试"}
             </button>
-            <Link href="/" className="secondary">
-              回到首页
+            <Link href="/tasks" className="secondary">
+              返回任务列表
             </Link>
           </div>
         </div>
