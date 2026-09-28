@@ -818,3 +818,9 @@ a.stamp:hover {
 .task-percent { font-family: var(--mono); font-size: 0.8rem; text-align: right; }
 .task-error { color: var(--cinnabar); margin: 0.25rem 0 1rem; font-size: 0.85rem; overflow-wrap: anywhere; }
 :focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 4px; }
+
+.export-dialog { width: min(30rem, calc(100% - 2rem)); padding: 2rem; border: 1px solid var(--rule-strong); background: var(--paper-card); color: var(--ink); box-shadow: 8px 8px 0 var(--paper-deep); }
+.export-dialog::backdrop { background: rgb(30 26 21 / 45%); }
+.export-dialog h2 { margin: 0 0 1rem; }
+.export-dialog .primary { text-decoration: none; }
+.export-name { overflow-wrap: anywhere; font-weight: 600; }

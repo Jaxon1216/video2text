@@ -129,3 +129,41 @@ def test_library_error_is_not_empty_state(page):
     page.goto(f"{URL}/videos")
     expect(page.get_by_text("文字稿加载失败", exact=False)).to_be_visible()
     expect(page.get_by_text("还没有文字稿", exact=False)).to_have_count(0)
+
+
+@pytest.mark.parametrize('label,extension', [('TXT', 'txt'), ('Markdown', 'md'), ('SRT', 'srt')])
+def test_export_confirmation_and_focus(page, label, extension):
+    from playwright.sync_api import expect
+
+    requests = []
+    def export(route):
+        requests.append(route.request.url)
+        route.fulfill(body="transcript", content_type="text/plain", headers={"Content-Disposition": f'attachment; filename="demo.{extension}"'})
+    page.route("**/api/videos/1/export?**", export)
+    page.goto(f"{URL}/videos/1")
+    trigger = page.get_by_role("button", name=label, exact=True)
+    trigger.click()
+    dialog = page.get_by_role("dialog", name="确认下载")
+    expect(dialog).to_be_visible()
+    expect(dialog.get_by_text("线程池笔记", exact=True)).to_be_visible()
+    assert requests == []
+    page.keyboard.press("Escape")
+    expect(dialog).to_have_count(0)
+    expect(trigger).to_be_focused()
+    trigger.click()
+    dialog.get_by_role("button", name="取消").click()
+    assert requests == []
+    trigger.click()
+    with page.expect_download():
+        dialog.get_by_role("link", name="确认下载").click()
+    assert len(requests) == 1 and f"format={extension}" in requests[0]
+    expect(dialog).to_have_count(0)
+
+
+def test_srt_unavailable_without_timestamps(page):
+    from playwright.sync_api import expect
+
+    page.route("**/api/videos/1/document", lambda route: route.fulfill(json={**DOCUMENT, "has_timestamps": False, "segments": []}))
+    page.goto(f"{URL}/videos/1")
+    expect(page.get_by_text("SRT", exact=True)).to_have_attribute("title", "没有时间戳，无法导出字幕")
+    expect(page.get_by_role("button", name="SRT", exact=True)).to_have_count(0)

@@ -1,5 +1,6 @@
+import { ExportDialog } from "../components/ExportDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { exportUrl, getDocument, type TranscriptDocument } from "../api";
+import { getDocument, type ExportFormat, type TranscriptDocument } from "../api";
 import {
   PLATFORM_LABELS,
   buildCopyForAI,
@@ -17,6 +18,7 @@ import { Link } from "../router";
 export function VideoPage({ videoId }: { videoId: number }) {
   const [document, setDocument] = useState<TranscriptDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
 
@@ -101,22 +103,16 @@ export function VideoPage({ videoId }: { videoId: number }) {
         </button>
         <span className="toolbar-gap" />
         <span className="toolbar-label">下载</span>
-        <a className="chip" href={exportUrl(document.video_id, "txt")}>
-          TXT
-        </a>
-        <a className="chip" href={exportUrl(document.video_id, "md")}>
-          Markdown
-        </a>
+        <button className="chip" onClick={() => setExportFormat("txt")}>TXT</button>
+        <button className="chip" onClick={() => setExportFormat("md")}>Markdown</button>
         {document.has_timestamps ? (
-          <a className="chip" href={exportUrl(document.video_id, "srt")}>
-            SRT
-          </a>
+          <button className="chip" onClick={() => setExportFormat("srt")}>SRT</button>
         ) : (
-          <span className="chip is-disabled" title="没有时间戳，无法导出字幕">
-            SRT
-          </span>
+          <span className="chip is-disabled" title="没有时间戳，无法导出字幕">SRT</span>
         )}
       </div>
+
+      {exportFormat && <ExportDialog videoId={document.video_id} title={document.title} format={exportFormat} onClose={() => setExportFormat(null)} />}
 
       {!document.has_timestamps && (
         <p className="notice">

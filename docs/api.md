@@ -325,6 +325,8 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
 
 ### 6. 导出
 
+Web 在用户确认站内弹窗后才请求导出；API 本身仍直接返回附件。
+
 `GET /api/videos/{video_id}/export?format=txt|plain|md|srt`
 
 以附件形式返回（`Content-Disposition: attachment; filename*=UTF-8''<标题>.<扩展名>`）：
