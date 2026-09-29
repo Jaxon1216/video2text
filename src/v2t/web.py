@@ -17,7 +17,8 @@ from v2t.library import WorkspaceLibrary
 from v2t.models import TaskRecord, TranscriptDocument
 from v2t.tasks import TaskService
 from v2t.user_config import ALL_PROVIDERS, AppConfig
-from v2t.model_catalog import model_choices, resolve_model
+from v2t.model_catalog import resolve_model
+from v2t.model_inventory import ModelInventory
 
 DEFAULT_WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
 FRONTEND_MISSING_HTML = """<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>video2text</title>
@@ -93,6 +94,7 @@ def create_app(
             raise HTTPException(status_code=400, detail="请先配置 SenseVoice 本地模型目录")
         return selected_provider, selected_model
 
+    inventory = ModelInventory(runtime_config)
     app = FastAPI(title="video2text")
     dist = web_dist if web_dist is not None else resolve_web_dist()
 
@@ -347,13 +349,8 @@ def create_app(
         )
 
     @app.get("/api/models")
-    async def get_models() -> JSONResponse:
-        return JSONResponse({"items": [
-            {"provider": provider, "default_model": resolve_model(runtime_config, provider),
-             "enabled": provider in runtime_config.enabled_providers,
-             "models": model_choices(runtime_config, provider)}
-            for provider in ALL_PROVIDERS
-        ]})
+    def get_models(refresh: bool = Query(False)) -> JSONResponse:
+        return JSONResponse(inventory.snapshot(refresh=refresh))
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_frontend(full_path: str) -> Response:

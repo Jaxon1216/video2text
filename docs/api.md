@@ -32,7 +32,8 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
 ## 前端托管
 
 - `GET /api/config`：默认引擎、默认模型、可选引擎列表，供前端表单使用。
-- `GET /api/models`：`items` 按引擎分组，每组包含 `provider`、`default_model`、`enabled` 与 `models: [{id, label}]`；不包含云端密钥。
+- `GET /api/models`：`items` 按引擎分组，每组包含 `provider`、`default_model`、`enabled` 与 `dependency_installed` 与 `models: [{id, label, cache_status, cache_message, downloadable}]`；不包含云端密钥。启动时生成扫描快照，响应顶层 `scanned_at` 为 UTC 时间；`GET /api/models?refresh=true` 重新只读扫描，普通请求复用快照。
+- `cache_status`：`found`（关键文件存在且非空）、`missing`、`incomplete`、`unknown`、`not_applicable`（云端）。扫描不校验权重内容，也不保证实际可运行；`dependency_installed` 只检查引擎模块是否安装。
 - 所有不以 `/api/` 开头的路径都返回 `web/dist` 里的静态文件，找不到则返回 `index.html`（前端路由）。`web/dist` 不存在时返回 503 提示页。
 
 ## 通用响应习惯

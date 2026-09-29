@@ -107,3 +107,14 @@ flowchart LR
 模型选项统一定义在 `model_catalog.py`，CLI 配置向导复用该目录；默认模型解析按引擎隔离，显式模型名或路径优先。
 
 `/api/models` 提供共享模型目录，Web 按引擎切换选项。CLI、Web API、factory 都通过 `resolve_model` 解析默认值，环境变量/CLI 参数只覆盖运行配置。新建配置默认 faster-whisper large-v3-turbo；已有配置保留原值，旧文件缺少 model 字段时仍回退 small。自定义模型名和路径保留。
+
+## 模型文件扫描
+
+`model_inventory.ModelInventory` 在创建 Web app 时扫描一次，普通 `/api/models` 请求复用快照；手动刷新在线程池中执行并串行更新快照。只检查文件大小、关键文件和缓存引用，不访问网络、不校验大文件哈希、不导入 ML 引擎。
+
+- faster-whisper 优先检查 `download_root`，否则按 `HF_HUB_CACHE` → `HUGGINGFACE_HUB_CACHE` → `HF_HOME/hub` → `XDG_CACHE_HOME/huggingface/hub` → `~/.cache/huggingface/hub` 定位。只认可 `refs/main` 指向的 snapshot，检查 config、model、tokenizer、vocabulary；失效软链接不算已找到。
+- 模型别名通过静态读取已安装引擎的 `_MODELS` 字典解析，避免导入权重运行库；无法识别的布局返回 unknown。依赖不存在时只用已知档位映射作文件检查，并独立显示依赖未安装。
+- Whisper 检查 `XDG_CACHE_HOME/whisper`（默认 `~/.cache/whisper`）或自定义权重文件。SenseVoice 检查配置目录中的 ONNX、配置、归一化与分词文件。火山不扫描本地文件。
+- 前端标记缺失/不完整/未知，缺失的可下载模型仍可选并提示首次下载。SenseVoice 缺少文件时禁用提交，提示配置目录；刷新保留当前选择。
+
+SenseVoice 文件规则参考 [FunASR 加载器](https://github.com/modelscope/FunASR/blob/main/runtime/python/onnxruntime/funasr_onnx/sensevoice_bin.py)，与当前包装器的非量化默认参数一致。

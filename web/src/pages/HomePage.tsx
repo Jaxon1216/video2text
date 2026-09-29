@@ -1,13 +1,21 @@
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { getConfig, getModels, submitSources, type AppConfig, type ProviderModels } from "../api";
 import { PROVIDER_LABELS } from "../format";
 import { navigate } from "../router";
 
+const CACHE_LABELS = { found: "文件已找到", missing: "未下载", incomplete: "文件不完整", unknown: "无法判断", not_applicable: "云端" };
 
 export function HomePage() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [catalog, setCatalog] = useState<ProviderModels[]>([]);
   const [reload, setReload] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const [source, setSource] = useState("");
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
@@ -31,8 +39,24 @@ export function HomePage() {
   }, [reload]);
 
   const providers = config?.providers ?? [];
-  const models = catalog.find(item => item.provider === provider)?.models ?? [];
-  const canSubmit = Boolean(config && model && source.trim());
+  const group = catalog.find(item => item.provider === provider);
+  const models = group?.models ?? [];
+  const selectedModel = models.find(item => item.id === model);
+  const missingSenseVoice = provider === "sensevoice" && (!model || selectedModel?.cache_status === "missing" || selectedModel?.cache_status === "incomplete");
+  const canSubmit = Boolean(config && model && source.trim() && !missingSenseVoice);
+
+  const refreshModels = async () => {
+    setRefreshing(true);
+    setRefreshError(null);
+    try {
+      const result = await getModels(true);
+      if (mounted.current) setCatalog(result.items);
+    } catch (err) {
+      if (mounted.current) setRefreshError(`刷新失败，保留上次扫描结果：${(err as Error).message}`);
+    } finally {
+      if (mounted.current) setRefreshing(false);
+    }
+  };
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -107,9 +131,16 @@ export function HomePage() {
               <span>模型</span>
               <select value={model} onChange={(event) => setModel(event.target.value)} disabled={models.length === 0}>
                 {models.length === 0 && <option value="">尚未配置模型</option>}
-                {models.map(item => <option key={item.id} value={item.id}>{item.label}{provider === "faster-whisper" && item.id === "large-v3-turbo" ? "（推荐）" : ""}</option>)}
+                {models.map(item => <option key={item.id} value={item.id}>{item.label}{provider === "faster-whisper" && item.id === "large-v3-turbo" ? "（推荐）" : ""}{item.cache_status ? ` · ${CACHE_LABELS[item.cache_status]}` : ""}</option>)}
               </select>
             </label>
+            <div className="wide model-status">
+              <button type="button" className="link-button" disabled={refreshing} onClick={refreshModels}>{refreshing ? "正在扫描本地文件…" : "刷新本地模型状态"}</button>
+              <p className="muted">{provider === "volcengine" ? "云端模型无需本地文件。" : "扫描只检查文件，实际识别时才加载模型。"}</p>
+              {selectedModel?.cache_message && <p className="muted">{selectedModel.cache_message}</p>}
+              {group?.dependency_installed === false && <p className="notice">引擎依赖未安装，可运行 video2text bootstrap 配置。</p>}
+              {refreshError && <p className="error" role="status">{refreshError}</p>}
+            </div>
             <label className="wide">
               <span>术语提示（可选）</span>
               <input
@@ -120,7 +151,9 @@ export function HomePage() {
             </label>
           </div>
         )}
-        {provider === "sensevoice" && !model && <p className="notice">请先配置 SenseVoice 本地模型目录。</p>}
+        {missingSenseVoice && <p className="notice">请先配置 SenseVoice 本地模型目录，补齐模型文件后刷新状态。</p>}
+        {selectedModel?.downloadable && selectedModel.cache_status === "missing" && <p className="notice model-warning">首次识别需要下载模型，耗时取决于网络；直接使用平台字幕时无需下载。</p>}
+        {selectedModel?.downloadable && selectedModel.cache_status === "incomplete" && <p className="notice model-warning">模型文件不完整，识别时可能需要补充下载；若仍失败，请检查缓存文件。</p>}
         {error && <p className="error">{error}</p>}
         {!config && error && <button type="button" className="link-button" onClick={() => setReload(value => value + 1)}>重新加载配置</button>}
       </form>

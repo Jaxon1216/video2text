@@ -41,6 +41,7 @@ src/v2t/
   inputs.py         输入解析：本地文件 / B站 / 抖音分享文本 -> SourceRef
   models.py         数据类：SourceRef、DownloadResult、TranscriptResult、TranscriptDocument、TaskRecord...
   model_catalog.py  CLI / Web 共用的模型目录与各引擎默认值解析
+  model_inventory.py 只读磁盘模型扫描（不联网、不加载权重）
   factory.py        按 provider 组装 Transcriber（按配置缓存复用），按 source.kind 选择 Downloader
   pipeline.py       核心流程：下载 -> ffmpeg 抽 16k wav -> 转写 -> 写 txt + metadata json（含 segments）
   segments.py       segment 结构 {start, end, text}（秒）与归一化
@@ -71,6 +72,7 @@ docs/               架构、路线图、决策、平台说明、API
 - **测试不访问网络**：下载器、云 ASR、浏览器一律 mock；真实链接只用于手动端到端验证。
 - **保持简单**：不引入 Redis、消息队列、复杂数据库、登录权限等；SQLite + 线程池足够。确需引入必须先在 `docs/decisions.md` 记录理由。
 - **抖音**：不逆向 `a_bogus` 等签名算法；走 Playwright 浏览器截获（见 `docs/platforms/douyin.md`）。浏览器 UA 必须与实际系统一致（`default_user_agent`），否则详情接口返回空数据。
+- **模型配置**：新配置默认 faster-whisper large-v3-turbo，已有配置不迁移；模型档位只在 `model_catalog.py` 定义。扫描只检查文件，不能把文件存在等同于运行可用。
 - **前端页面**：`/` 新建转写、`/tasks` 全部任务、`/videos` 文字稿库；详情沿用 `/tasks/:id`、`/videos/:id`。
 - **前端**：分段规则（30 秒）必须和 `formatters.py` 保持一致；Copy for AI 的文本格式在 `web/src/format.ts` 的 `buildCopyForAI`。
 - 代码风格跟随现有代码：`from __future__ import annotations`、dataclass、类型标注、少量必要注释。

@@ -830,3 +830,8 @@ a.stamp:hover {
 .source-copy { position: absolute; top: 1.2rem; right: 0; opacity: 0; }
 .library li:hover .source-copy, .library li:focus-within .source-copy { opacity: 1; }
 @media (hover: none) { .source-copy { opacity: 1; } }
+
+.model-status { font-size: 0.8rem; overflow-wrap: anywhere; }
+.model-status p { margin: 0.4rem 0 0; }
+.model-warning { margin-top: 1rem; }
+.options select { min-width: 0; max-width: 100%; }

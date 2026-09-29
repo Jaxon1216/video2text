@@ -401,3 +401,20 @@ def test_batch_uses_runtime_model_defaults(tmp_path):
     task = response.json()['items'][0]
     assert task['provider'] == 'volcengine' and task['model'] == 'bigmodel'
     service.wait_for_task(task['id'])
+
+
+def test_model_inventory_refresh(tmp_path):
+    from v2t.user_config import AppConfig
+    _, service, database, library = build_test_app(tmp_path)
+    config = AppConfig(default_provider='whisper', default_model=str(tmp_path / 'custom.pt'))
+    config.sensevoice.model_dir = str(tmp_path / 'absent-sensevoice')
+    app = create_app(task_service=service, database=database, library=library, config=config)
+    client = TestClient(app)
+    def custom(response):
+        group = next(g for g in response.json()['items'] if g['provider'] == 'whisper')
+        return next(m for m in group['models'] if m['id'] == config.default_model)
+    assert custom(client.get('/api/models'))['cache_status'] == 'missing'
+    Path(config.default_model).write_text('weights')
+    assert custom(client.get('/api/models'))['cache_status'] == 'missing'
+    assert custom(client.get('/api/models?refresh=true'))['cache_status'] == 'found'
+    assert service.list_tasks() == []

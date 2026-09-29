@@ -221,3 +221,32 @@ def test_switching_provider_selects_its_own_model(page):
     page.get_by_label("粘贴链接").fill("BV1xx411c7XD")
     expect(page.get_by_role("button", name="转成文字")).to_be_disabled()
     expect(page.get_by_text("请先配置 SenseVoice 本地模型目录", exact=False)).to_be_visible()
+
+
+def test_cache_labels_refresh_and_missing_sensevoice(page):
+    from playwright.sync_api import expect
+
+    def models(route):
+        refreshed = 'refresh=true' in route.request.url
+        route.fulfill(json={'items': [
+            {'provider': 'faster-whisper', 'default_model': 'small', 'enabled': True, 'dependency_installed': True,
+             'models': [{'id': 'small', 'label': 'small', 'cache_status': 'found', 'cache_message': '关键文件已找到', 'downloadable': True},
+                        {'id': 'large-v3-turbo', 'label': 'large-v3-turbo', 'cache_status': 'found' if refreshed else 'missing', 'cache_message': '', 'downloadable': True}]},
+            {'provider': 'sensevoice', 'default_model': '/missing', 'enabled': False, 'dependency_installed': False,
+             'models': [{'id': '/missing', 'label': '/missing', 'cache_status': 'missing', 'cache_message': '模型目录不存在', 'downloadable': False}]},
+        ]})
+    page.route('**/api/models*', models)
+    page.goto(URL)
+    page.get_by_role('button', name='识别选项', exact=False).click()
+    select = page.get_by_role('combobox', name='模型', exact=True)
+    select.select_option('large-v3-turbo')
+    expect(select.get_by_role('option', name='large-v3-turbo', exact=False)).to_contain_text('未下载')
+    expect(page.get_by_text('首次识别需要下载模型', exact=False)).to_be_visible()
+    page.get_by_label('粘贴链接').fill('BV1xx411c7XD')
+    expect(page.get_by_role('button', name='转成文字')).to_be_enabled()
+    page.get_by_role('button', name='刷新本地模型状态').click()
+    expect(select.get_by_role('option', name='large-v3-turbo', exact=False)).to_contain_text('文件已找到')
+    expect(select).to_have_value('large-v3-turbo')
+    page.get_by_role('combobox', name='识别引擎').select_option('sensevoice')
+    expect(page.get_by_role('button', name='转成文字')).to_be_disabled()
+    expect(page.get_by_text('请先配置 SenseVoice 本地模型目录', exact=False)).to_be_visible()

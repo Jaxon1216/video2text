@@ -10,17 +10,21 @@ export interface AppConfig {
 export interface ModelOption {
   id: string;
   label: string;
+  cache_status: "found" | "missing" | "incomplete" | "unknown" | "not_applicable";
+  cache_message: string;
+  downloadable: boolean;
 }
 
 export interface ProviderModels {
   provider: string;
   default_model: string;
   enabled: boolean;
+  dependency_installed: boolean;
   models: ModelOption[];
 }
 
-export function getModels(): Promise<{ items: ProviderModels[] }> {
-  return request("/api/models");
+export function getModels(refresh = false): Promise<{ items: ProviderModels[]; scanned_at: string }> {
+  return request(`/api/models${refresh ? "?refresh=true" : ""}`);
 }
 
 export interface Task {
