@@ -1,4 +1,5 @@
 from pathlib import Path
+from threading import Event
 
 import pytest
 
@@ -6,6 +7,7 @@ from v2t.config import Settings
 from v2t.downloaders.base import Downloader
 from v2t.models import DownloadResult, SourceRef
 from v2t.pipeline import V2TPipeline, _parse_ffmpeg_progress_seconds
+from v2t.progress import ProgressReporter, TaskCancelled
 from v2t.transcribers.base import Transcriber
 
 
@@ -118,3 +120,57 @@ def test_parse_ffmpeg_progress_seconds_supports_us_and_ms() -> None:
     assert _parse_ffmpeg_progress_seconds("out_time_ms=2500000") == 2.5
     assert _parse_ffmpeg_progress_seconds("out_time_us=4000000") == 4.0
     assert _parse_ffmpeg_progress_seconds("progress=continue") is None
+
+
+def test_cancel_during_subtitle_lookup_does_not_fall_back_to_download(tmp_path: Path) -> None:
+    settings = Settings.from_workspace(tmp_path)
+    cancelled = Event()
+
+    class SubtitleDownloader(FakeDownloader):
+        def fetch_subtitles(self, source, settings, *, progress=None):
+            cancelled.set()
+            progress.running("downloading", message="checking_subtitles")
+
+        def download(self, source, settings, *, progress=None):
+            raise AssertionError("cancelled task must not download")
+
+    pipeline = PipelineUnderTest(settings=settings,
+                                 downloaders={"bilibili": SubtitleDownloader(tmp_path / "video.mp4")},
+                                 transcriber=FakeTranscriber())
+    with pytest.raises(TaskCancelled):
+        pipeline.transcribe("BV1xx411c7XD", progress=ProgressReporter("task", cancel_event=cancelled))
+
+
+def test_cancel_during_ffmpeg_terminates_process_and_removes_partial_audio(tmp_path: Path, monkeypatch) -> None:
+    settings = Settings.from_workspace(tmp_path)
+    settings.ensure_directories()
+    cancelled = Event()
+    terminated = []
+
+    class FakeProcess:
+        def __init__(self, command, **kwargs):
+            Path(command[-1]).write_bytes(b"partial")
+            self.stderr = None
+            self.stdout = self.lines()
+
+        def lines(self):
+            cancelled.set()
+            yield "out_time_ms=1000000\n"
+
+        def terminate(self):
+            terminated.append(True)
+
+        def poll(self):
+            return 0 if terminated else None
+
+        def wait(self, timeout=None):
+            return 0
+
+    monkeypatch.setattr("v2t.pipeline.shutil.which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr("v2t.pipeline._probe_media_duration_seconds", lambda path: 10.0)
+    monkeypatch.setattr("v2t.pipeline.subprocess.Popen", FakeProcess)
+    pipeline = V2TPipeline(settings=settings, downloaders={}, transcriber=FakeTranscriber())
+    with pytest.raises(TaskCancelled):
+        pipeline._extract_audio(tmp_path / "video.mp4", "demo", ProgressReporter("task", cancel_event=cancelled))
+    assert terminated
+    assert not (settings.audio_dir / "demo.wav").exists()

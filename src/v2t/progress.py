@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from threading import Event
 from typing import Any, Callable
 
 from v2t.models import ProgressSnapshot
 
 
 ProgressCallback = Callable[[ProgressSnapshot], None]
+
+
+class TaskCancelled(Exception):
+    """The task was stopped at a safe cancellation checkpoint."""
 
 
 STAGE_RANGES: dict[str, tuple[float, float]] = {
@@ -33,10 +38,15 @@ def overall_progress(stage: str, stage_progress: float | None = None) -> float:
 
 
 class ProgressReporter:
-    def __init__(self, task_id: str, callback: ProgressCallback | None = None) -> None:
+    def __init__(self, task_id: str, callback: ProgressCallback | None = None, cancel_event: Event | None = None) -> None:
         self.task_id = task_id
         self.callback = callback
+        self.cancel_event = cancel_event
         self.snapshot = ProgressSnapshot(task_id=task_id, status="queued", stage="queued")
+
+    def check_cancelled(self) -> None:
+        if self.cancel_event is not None and self.cancel_event.is_set():
+            raise TaskCancelled()
 
     def emit(
         self,
@@ -75,6 +85,7 @@ class ProgressReporter:
         indeterminate: bool = False,
         detail: dict[str, Any] | None = None,
     ) -> ProgressSnapshot:
+        self.check_cancelled()
         return self.emit(
             status="running",
             stage=stage,
@@ -95,3 +106,6 @@ class ProgressReporter:
             percent=self.snapshot.percent,
             detail=replace(self.snapshot).detail,
         )
+
+    def cancelled(self, message: str = "cancelled") -> ProgressSnapshot:
+        return self.emit(status="cancelled", stage="cancelled", message=message, percent=self.snapshot.percent)

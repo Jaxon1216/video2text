@@ -154,6 +154,16 @@ def create_app(
             raise HTTPException(status_code=404, detail="task not found")
         return JSONResponse(asdict(task))
 
+    @app.post("/api/tasks/{task_id}/cancel")
+    async def cancel_task(task_id: str) -> JSONResponse:
+        try:
+            task = task_service.cancel_task(task_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="task not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return JSONResponse(asdict(task))
+
     @app.get("/api/tasks/{task_id}/progress")
     async def get_task_progress(task_id: str) -> JSONResponse:
         task = task_service.get_task(task_id)

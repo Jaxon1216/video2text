@@ -11,7 +11,7 @@ from v2t.config import Settings
 from v2t.downloaders.base import Downloader
 from v2t.inputs import parse_source, safe_stem
 from v2t.models import REMOTE_SOURCE_KINDS, DownloadResult, SourceRef, SubtitleResult, TranscriptResult
-from v2t.progress import ProgressReporter
+from v2t.progress import ProgressReporter, TaskCancelled
 from v2t.segments import join_text
 from v2t.transcribers.base import Transcriber
 
@@ -147,6 +147,8 @@ class V2TPipeline:
     ) -> SubtitleResult | None:
         try:
             return downloader.fetch_subtitles(source, self.settings, progress=progress)
+        except TaskCancelled:
+            raise
         except Exception as exc:  # noqa: BLE001 - subtitles are an optimisation; ASR is the fallback
             if progress is not None:
                 progress.running(
@@ -217,24 +219,37 @@ class V2TPipeline:
             stderr=subprocess.PIPE,
             encoding="utf-8",
         )
-        assert process.stdout is not None
-        for line in process.stdout:
-            parsed_seconds = _parse_ffmpeg_progress_seconds(line.strip())
-            if parsed_seconds is None or duration in (None, 0):
-                continue
-            progress.running(
-                "extracting_audio",
-                message="extracting_audio",
-                stage_progress=min(1.0, parsed_seconds / duration),
-            )
-        stderr_text = ""
-        if process.stderr is not None:
-            stderr_text = process.stderr.read()
-        returncode = process.wait()
-        if returncode != 0:
-            stderr = stderr_text.strip() or "unknown ffmpeg error"
-            raise RuntimeError(f"ffmpeg failed to extract audio: {stderr}")
-        return audio_path
+        try:
+            assert process.stdout is not None
+            for line in process.stdout:
+                progress.check_cancelled()
+                parsed_seconds = _parse_ffmpeg_progress_seconds(line.strip())
+                if parsed_seconds is None or duration in (None, 0):
+                    continue
+                progress.running(
+                    "extracting_audio",
+                    message="extracting_audio",
+                    stage_progress=min(1.0, parsed_seconds / duration),
+                )
+            progress.check_cancelled()
+            stderr_text = ""
+            if process.stderr is not None:
+                stderr_text = process.stderr.read()
+            returncode = process.wait()
+            if returncode != 0:
+                stderr = stderr_text.strip() or "unknown ffmpeg error"
+                raise RuntimeError(f"ffmpeg failed to extract audio: {stderr}")
+            return audio_path
+        except BaseException:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+            audio_path.unlink(missing_ok=True)
+            raise
 
     def _resolve_output_path(self, base_name: str, output: Path | None) -> Path:
         if output is None:

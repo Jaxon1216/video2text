@@ -132,6 +132,28 @@ def test_missing_task_stops_polling(page):
     assert len(calls) == initial_count
 
 
+def test_cancel_running_task_from_detail(page):
+    from playwright.sync_api import expect
+
+    page.route("**/api/tasks/demo/cancel", lambda route: route.fulfill(json={**TASK, "cancel_requested": True}))
+    page.goto(f"{URL}/tasks/demo")
+    page.get_by_role("button", name="中断任务").click()
+    expect(page.get_by_text("正在中断", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="中断任务")).to_have_count(0)
+
+
+def test_cancel_queued_task_from_list_without_navigation(page):
+    from playwright.sync_api import expect
+
+    queued = {**TASK, "status": "queued", "current_stage": "queued", "id": "queued"}
+    page.route("**/api/tasks", lambda route: route.fulfill(json={"items": [queued]}))
+    page.route("**/api/tasks/queued/cancel", lambda route: route.fulfill(json={**queued, "status": "cancelled", "cancel_requested": True}))
+    page.goto(f"{URL}/tasks")
+    page.get_by_role("button", name="中断任务").click()
+    expect(page).to_have_url(f"{URL}/tasks")
+    expect(page.get_by_text("已取消", exact=True)).to_be_visible()
+
+
 def test_library_error_is_not_empty_state(page):
     from playwright.sync_api import expect
 

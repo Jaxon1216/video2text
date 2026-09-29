@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ApiError, getTask, submitSources, type Task } from "../api";
+import { ApiError, cancelTask, getTask, submitSources, type Task } from "../api";
 import { PIPELINE_STAGES, messageLabel, stageLabel } from "../format";
 import { Link, navigate } from "../router";
 
@@ -8,6 +8,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +53,19 @@ export function TaskPage({ taskId }: { taskId: string }) {
     }
   };
 
+  const cancel = async () => {
+    if (!task || cancelling) return;
+    setCancelling(true);
+    try {
+      setTask(await cancelTask(task.id));
+      setError(null);
+    } catch (err) {
+      setError(`中断失败：${(err as Error).message}`);
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (missing) {
     return (
       <section className="page narrow">
@@ -72,13 +86,16 @@ export function TaskPage({ taskId }: { taskId: string }) {
   return (
     <section className="page narrow">
       <Link href="/tasks" className="back">← 全部任务</Link>
-      <p className="kicker">{failed ? "处理失败" : task?.status === "cancelled" ? "已取消" : task?.status === "completed" ? "已完成" : task?.status === "queued" ? "排队中" : "正在处理"}</p>
+      <p className="kicker">{failed ? "处理失败" : task?.status === "cancelled" ? "已取消" : task?.status === "completed" ? "已完成" : task?.cancel_requested ? "正在中断" : task?.status === "queued" ? "排队中" : "正在处理"}</p>
       {error && <p className="error" role="status">{error}</p>}
       <h1 className="headline source-line">{task?.source_input ?? "…"}</h1>
       <p className="muted">
         {task ? `${task.provider} ${task.model}` : "加载中"}
         {detail && !failed ? ` · ${detail}` : ""}
       </p>
+      {task && ["queued", "running"].includes(task.status) && !task.cancel_requested && (
+        <button className="secondary" onClick={cancel} disabled={cancelling}>{cancelling ? "正在提交…" : "中断任务"}</button>
+      )}
 
       <div className={`progress ${terminal ? "is-failed" : ""}`}>
         <div className="progress-bar" style={{ width: `${failed ? 100 : Math.max(percent, 3)}%` }} />

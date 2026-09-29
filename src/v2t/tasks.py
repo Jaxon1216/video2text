@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import os
 import logging
-from concurrent.futures import Future, ThreadPoolExecutor
-from threading import Lock
+from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
+from threading import Event, Lock
 from typing import Callable
 
 from v2t.database import AppDatabase
 from v2t.library import WorkspaceLibrary
 from v2t.models import TaskRecord
 from v2t.pipeline import V2TPipeline
-from v2t.progress import ProgressCallback, ProgressReporter
+from v2t.progress import ProgressCallback, ProgressReporter, TaskCancelled
 
 
 PipelineFactory = Callable[[str, str], V2TPipeline]
@@ -31,9 +31,11 @@ class TaskService:
         self.database = database
         self.library = library
         self.pipeline_factory = pipeline_factory
+        self.database.recover_interrupted_tasks()
         self.executor = ThreadPoolExecutor(max_workers=task_workers_from_env(), thread_name_prefix="v2t-task")
         self._listeners: dict[str, list[ProgressCallback]] = {}
         self._futures: dict[str, Future[object]] = {}
+        self._cancel_events: dict[str, Event] = {}
         self._lock = Lock()
         self._logged_stages: dict[str, tuple[str, str]] = {}
 
@@ -59,16 +61,44 @@ class TaskService:
             self.add_listener(task.id, listener)
         reporter = ProgressReporter(task.id, callback=self._handle_progress)
         reporter.queued("queued")
-        future = self.executor.submit(self._run_transcription, task.id, source, provider, model, prompt)
+        cancel_event = Event()
+        future = self.executor.submit(self._run_transcription, task.id, source, provider, model, prompt, cancel_event)
         with self._lock:
             self._futures[task.id] = future
+            self._cancel_events[task.id] = cancel_event
         return task
+
+    def cancel_task(self, task_id: str) -> TaskRecord:
+        with self._lock:
+            task = self.database.get_task(task_id)
+            if task is None:
+                raise KeyError(task_id)
+            if task.status in ("completed", "failed"):
+                raise ValueError(f"task already {task.status}")
+            if task.status == "cancelled":
+                return task
+            event = self._cancel_events.get(task_id)
+            if event is None:
+                raise RuntimeError("task is not active in this process")
+            event.set()
+            future = self._futures.get(task_id)
+            queued = future is not None and future.cancel()
+            if queued:
+                self.database.cancel_task(task_id)
+            else:
+                self.database.request_cancel(task_id)
+        if queued:
+            ProgressReporter(task_id, callback=self._handle_progress).cancelled()
+        return self.database.get_task(task_id)
 
     def wait_for_task(self, task_id: str) -> TaskRecord:
         with self._lock:
             future = self._futures.get(task_id)
         if future is not None:
-            future.result()
+            try:
+                future.result()
+            except CancelledError:
+                pass
         task = self.database.get_task(task_id)
         if task is None:
             raise RuntimeError(f"task not found: {task_id}")
@@ -84,17 +114,33 @@ class TaskService:
     def list_tasks(self) -> list[TaskRecord]:
         return self.database.list_tasks()
 
-    def _run_transcription(self, task_id: str, source: str, provider: str, model: str, prompt: str) -> None:
-        reporter = ProgressReporter(task_id, callback=self._handle_progress)
+    def _run_transcription(self, task_id: str, source: str, provider: str, model: str, prompt: str, cancel_event: Event) -> None:
+        reporter = ProgressReporter(task_id, callback=self._handle_progress, cancel_event=cancel_event)
+        result = None
         try:
             reporter.running("preparing", message="preparing")
             pipeline = self.pipeline_factory(provider, model)
             result = pipeline.transcribe(source, prompt=prompt or None, progress=reporter)
             reporter.running("indexing", message="indexing", stage_progress=0.5)
-            video_id = self.library.register_transcript_result(result)
-            self.database.complete_task(task_id, video_id=video_id, message="completed")
+            with self._lock:
+                reporter.check_cancelled()
+                video_id = self.library.register_transcript_result(result)
+                self.database.complete_task(task_id, video_id=video_id, message="completed")
             reporter.completed("completed")
+        except TaskCancelled:
+            if result is not None:
+                result.transcript_path.unlink(missing_ok=True)
+                result.metadata_path.unlink(missing_ok=True)
+            self.database.cancel_task(task_id)
+            reporter.cancelled()
         except Exception as exc:
+            if cancel_event.is_set():
+                if result is not None:
+                    result.transcript_path.unlink(missing_ok=True)
+                    result.metadata_path.unlink(missing_ok=True)
+                self.database.cancel_task(task_id)
+                reporter.cancelled()
+                return
             self.database.fail_task(task_id, error_message=str(exc))
             reporter.failed(str(exc))
             raise

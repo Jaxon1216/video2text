@@ -166,6 +166,10 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
 
 返回单个任务对象。
 
+### 4a. 中断任务
+
+`POST /api/tasks/{task_id}/cancel`。排队任务返回 `status=cancelled`；运行任务返回原状态和 `cancel_requested=true`，客户端继续轮询直至 `cancelled`。重复取消已取消任务返回当前任务；任务不存在返回 404，已完成或失败返回 409。任务对象新增布尔字段 `cancel_requested`。
+
 ### 5. 查询任务当前进度
 
 `GET /api/tasks/{task_id}/progress`

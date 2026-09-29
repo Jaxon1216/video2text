@@ -203,27 +203,33 @@ class DouyinDownloader(Downloader):
     def _stream_to_file(self, url: str, target: Path, *, progress: ProgressReporter | None) -> None:
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Referer": REFERER})
         tmp_path = target.with_suffix(target.suffix + ".part")
-        with self._opener(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response, tmp_path.open("wb") as handle:
-            total = int(response.headers.get("Content-Length") or 0)
-            downloaded = 0
-            while True:
-                chunk = response.read(_CHUNK_SIZE)
-                if not chunk:
-                    break
-                handle.write(chunk)
-                downloaded += len(chunk)
-                if progress is not None:
-                    stage_progress = downloaded / total if total else None
-                    progress.running(
-                        "downloading",
-                        message="downloading",
-                        stage_progress=stage_progress,
-                        indeterminate=stage_progress is None,
-                    )
-        if tmp_path.stat().st_size == 0:
+        try:
+            with self._opener(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response, tmp_path.open("wb") as handle:
+                total = int(response.headers.get("Content-Length") or 0)
+                downloaded = 0
+                while True:
+                    if progress is not None:
+                        progress.check_cancelled()
+                    chunk = response.read(_CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    handle.write(chunk)
+                    downloaded += len(chunk)
+                    if progress is not None:
+                        stage_progress = downloaded / total if total else None
+                        progress.running(
+                            "downloading",
+                            message="downloading",
+                            stage_progress=stage_progress,
+                            indeterminate=stage_progress is None,
+                        )
+            if progress is not None:
+                progress.check_cancelled()
+            if tmp_path.stat().st_size == 0:
+                raise OSError("empty response body")
+            shutil.move(str(tmp_path), target)
+        finally:
             tmp_path.unlink(missing_ok=True)
-            raise OSError("empty response body")
-        shutil.move(str(tmp_path), target)
         if progress is not None:
             progress.running("downloading", message="download_finished", stage_progress=1.0)
 

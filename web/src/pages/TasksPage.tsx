@@ -1,11 +1,24 @@
 import { useEffect, useState } from "react";
-import { listTasks, type Task } from "../api";
+import { cancelTask, listTasks, type Task } from "../api";
 import { formatDate, stageLabel } from "../format";
 import { Link } from "../router";
 
 export function TasksPage() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const cancel = async (taskId: string) => {
+    setCancelling(taskId);
+    try {
+      const updated = await cancelTask(taskId);
+      setTasks(current => current?.map(task => task.id === taskId ? updated : task) ?? null);
+      setError(null);
+    } catch (err) {
+      setError(`中断失败：${(err as Error).message}`);
+    } finally {
+      setCancelling(null);
+    }
+  };
   useEffect(() => {
     let cancelled = false;
     let timer: number | undefined;
@@ -37,9 +50,12 @@ export function TasksPage() {
             <li key={task.id}>
               <Link href={`/tasks/${task.id}`} className="task-row">
                 <span className="task-source">{task.source_input}<small className="task-meta">{formatDate(task.created_at)} · {task.provider} {task.model}</small></span>
-                <span className="task-stage">{task.status === "failed" ? "处理失败" : task.status === "completed" ? "已完成" : task.status === "cancelled" ? "已取消" : stageLabel(task.current_stage)}</span>
+                <span className="task-stage">{task.status === "failed" ? "处理失败" : task.status === "completed" ? "已完成" : task.status === "cancelled" ? "已取消" : task.cancel_requested ? "正在中断" : stageLabel(task.current_stage)}</span>
                 <span className="task-percent">{Math.round(task.progress_percent * 100)}%</span>
               </Link>
+              {["queued", "running"].includes(task.status) && !task.cancel_requested && (
+                <button className="chip" onClick={() => cancel(task.id)} disabled={cancelling === task.id}>中断任务</button>
+              )}
               {task.status === "failed" && <p className="task-error">{task.error_message}</p>}
             </li>
           ))}

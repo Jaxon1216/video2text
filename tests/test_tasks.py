@@ -1,4 +1,5 @@
 from pathlib import Path
+from threading import Event
 
 from v2t.config import Settings
 from v2t.database import AppDatabase
@@ -104,3 +105,85 @@ def test_terminal_progress_already_has_result_or_error(tmp_path):
             assert observed[0].error_message == 'recognition failed'
         else:
             assert observed[0].video_id is not None
+
+
+def test_cancel_queued_task_never_runs_or_creates_video(tmp_path, monkeypatch):
+    monkeypatch.setenv("V2T_TASK_WORKERS", "1")
+    settings = Settings.from_workspace(tmp_path)
+    database = AppDatabase(settings)
+    entered, release = Event(), Event()
+
+    class BlockingPipeline(FakePipeline):
+        def transcribe(self, source, **kwargs):
+            entered.set()
+            assert release.wait(5)
+            return super().transcribe(source, **kwargs)
+
+    service = TaskService(database=database, library=WorkspaceLibrary(settings, database),
+                          pipeline_factory=lambda provider, model: BlockingPipeline(settings, provider, model))
+    first = service.submit_transcription(source="BV1xx411c7XD", provider="whisper", model="small")
+    assert entered.wait(5)
+    second = service.submit_transcription(source="BV1yy411c7XD", provider="whisper", model="small")
+    cancelled = service.cancel_task(second.id)
+    assert cancelled.status == "cancelled" and cancelled.finished_at
+    release.set()
+    service.wait_for_task(first.id)
+    assert service.wait_for_task(second.id).status == "cancelled"
+    assert len(database.list_videos()) == 1
+    service.executor.shutdown()
+
+
+def test_cancel_running_task_discards_result(tmp_path):
+    settings = Settings.from_workspace(tmp_path)
+    database = AppDatabase(settings)
+    entered, release = Event(), Event()
+
+    class BlockingPipeline(FakePipeline):
+        def transcribe(self, source, **kwargs):
+            entered.set()
+            assert release.wait(5)
+            return super().transcribe(source, **kwargs)
+
+    service = TaskService(database=database, library=WorkspaceLibrary(settings, database),
+                          pipeline_factory=lambda provider, model: BlockingPipeline(settings, provider, model))
+    task = service.submit_transcription(source="BV1xx411c7XD", provider="whisper", model="small")
+    assert entered.wait(5)
+    pending = service.cancel_task(task.id)
+    assert pending.status == "running" and pending.cancel_requested
+    release.set()
+    finished = service.wait_for_task(task.id)
+    assert finished.status == "cancelled" and finished.video_id is None and finished.finished_at
+    assert database.list_videos() == []
+    service.executor.shutdown()
+
+
+def test_service_recovers_tasks_left_active_by_restart(tmp_path):
+    settings = Settings.from_workspace(tmp_path)
+    database = AppDatabase(settings)
+    task = database.create_task(kind="transcription", source_input="demo", provider="whisper", model="small")
+    TaskService(database=database, library=WorkspaceLibrary(settings, database), pipeline_factory=None).executor.shutdown()
+    recovered = database.get_task(task.id)
+    assert recovered.status == "failed"
+    assert "重启" in recovered.error_message
+
+
+def test_error_after_cancel_request_stays_cancelled(tmp_path):
+    settings = Settings.from_workspace(tmp_path)
+    database = AppDatabase(settings)
+    entered, release = Event(), Event()
+
+    class FailingPipeline(FakePipeline):
+        def transcribe(self, source, **kwargs):
+            entered.set()
+            assert release.wait(5)
+            raise RuntimeError("download stopped")
+
+    service = TaskService(database=database, library=WorkspaceLibrary(settings, database),
+                          pipeline_factory=lambda provider, model: FailingPipeline(settings, provider, model))
+    task = service.submit_transcription(source="BV1xx411c7XD", provider="whisper", model="small")
+    assert entered.wait(5)
+    service.cancel_task(task.id)
+    release.set()
+    service.wait_for_task(task.id)
+    assert database.get_task(task.id).status == "cancelled"
+    service.executor.shutdown()

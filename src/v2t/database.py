@@ -41,6 +41,7 @@ class AppDatabase:
                     provider TEXT NOT NULL,
                     model TEXT NOT NULL,
                     workspace_root TEXT NOT NULL,
+                    cancel_requested INTEGER NOT NULL DEFAULT 0,
                     progress_percent REAL NOT NULL DEFAULT 0,
                     current_stage TEXT NOT NULL DEFAULT 'queued',
                     current_message TEXT NOT NULL DEFAULT '',
@@ -116,6 +117,9 @@ class AppDatabase:
                 );
                 """
             )
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(tasks)")}
+            if "cancel_requested" not in columns:
+                conn.execute("ALTER TABLE tasks ADD COLUMN cancel_requested INTEGER NOT NULL DEFAULT 0")
 
     def create_task(self, *, kind: str, source_input: str, provider: str, model: str) -> TaskRecord:
         now = utc_now()
@@ -162,7 +166,7 @@ class AppDatabase:
                     UPDATE tasks
                     SET status = ?, progress_percent = ?, current_stage = ?, current_message = ?,
                         started_at = COALESCE(started_at, ?)
-                    WHERE id = ?
+                    WHERE id = ? AND status IN ('queued', 'running')
                     """,
                     (
                         snapshot.status,
@@ -178,7 +182,7 @@ class AppDatabase:
                     """
                     UPDATE tasks
                     SET status = ?, progress_percent = ?, current_stage = ?, current_message = ?
-                    WHERE id = ?
+                    WHERE id = ? AND status IN ('queued', 'running')
                     """,
                     (
                         snapshot.status,
@@ -214,7 +218,7 @@ class AppDatabase:
                 UPDATE tasks
                 SET status = 'completed', progress_percent = 1.0, current_stage = 'completed',
                     current_message = ?, video_id = ?, finished_at = ?
-                WHERE id = ?
+                WHERE id = ? AND status = 'running' AND cancel_requested = 0
                 """,
                 (message, video_id, now, task_id),
             )
@@ -226,9 +230,31 @@ class AppDatabase:
                 """
                 UPDATE tasks
                 SET status = 'failed', current_stage = 'failed', error_message = ?, finished_at = ?
-                WHERE id = ?
+                WHERE id = ? AND status IN ('queued', 'running')
                 """,
                 (error_message, now, task_id),
+            )
+
+    def request_cancel(self, task_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute("UPDATE tasks SET cancel_requested = 1 WHERE id = ? AND status IN ('queued', 'running')", (task_id,))
+
+    def cancel_task(self, task_id: str) -> None:
+        now = utc_now()
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE tasks SET status = 'cancelled', current_stage = 'cancelled', current_message = 'cancelled', "
+                "cancel_requested = 1, finished_at = ? WHERE id = ? AND status IN ('queued', 'running')",
+                (now, task_id),
+            )
+
+    def recover_interrupted_tasks(self) -> None:
+        now = utc_now()
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE tasks SET status = 'failed', current_stage = 'failed', "
+                "error_message = '服务重启，任务已中断', finished_at = ? WHERE status IN ('queued', 'running')",
+                (now,),
             )
 
     def get_task(self, task_id: str) -> TaskRecord | None:
@@ -550,6 +576,7 @@ class AppDatabase:
             provider=row["provider"],
             model=row["model"],
             workspace_root=row["workspace_root"],
+            cancel_requested=bool(row["cancel_requested"]),
             progress_percent=float(row["progress_percent"]),
             current_stage=row["current_stage"],
             current_message=row["current_message"],

@@ -33,6 +33,7 @@ export interface Task {
   source_input: string;
   provider: string;
   model: string;
+  cancel_requested: boolean;
   progress_percent: number;
   current_stage: string;
   current_message: string;
@@ -138,6 +139,10 @@ export async function submitSources(sourceText: string, options: SubmitOptions):
 
 export function getTask(taskId: string): Promise<Task> {
   return request<Task>(`/api/tasks/${taskId}`);
+}
+
+export function cancelTask(taskId: string): Promise<Task> {
+  return request<Task>(`/api/tasks/${taskId}/cancel`, { method: "POST" });
 }
 
 export async function listTasks(): Promise<Task[]> {

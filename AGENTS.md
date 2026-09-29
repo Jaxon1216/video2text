@@ -49,7 +49,7 @@ src/v2t/
   evaluation.py     评测指标：CER、术语召回
   downloaders/      ytdlp.py（B站：短链解析、字幕优先）、douyin.py（抖音）
   transcribers/     faster_whisper_local.py、whisper_local.py、sensevoice_local.py、volcengine.py
-  tasks.py          线程池任务服务 + 进度回调
+  tasks.py          线程池任务服务 + 协作式中断 + 进度回调
   logging_config.py 正常轮询 access log 过滤与任务日志配置
   progress.py       阶段进度（stage -> 总进度区间）
   library.py        把结果登记进视频库、管理转写稿版本
@@ -70,6 +70,7 @@ docs/               架构、路线图、决策、平台说明、API
 - **新增平台**：在 `models.SourceKind` 加类型 → `inputs.py` 识别（不访问网络）→ `downloaders/` 新建实现（平台有字幕就实现 `fetch_subtitles`）→ `factory.py` 注册。不要在 pipeline 里写平台特判。
 - **新增 ASR**：`transcribers/` 新建实现，返回的 `segments` 必须用 `normalize_segments` 归一化 → `factory.py` + `user_config.py` 注册 → `bootstrap.py` / `doctor` 接入。
 - **测试不访问网络**：下载器、云 ASR、浏览器一律 mock；真实链接只用于手动端到端验证。
+- **任务中断**：排队任务直接取消，运行任务通过取消令牌在阶段边界和进度检查点停止；不可中断的模型调用返回后丢弃结果。`cancel_requested` 与终态写库须避免竞态。
 - **保持简单**：不引入 Redis、消息队列、复杂数据库、登录权限等；SQLite + 线程池足够。确需引入必须先在 `docs/decisions.md` 记录理由。
 - **抖音**：不逆向 `a_bogus` 等签名算法；走 Playwright 浏览器截获（见 `docs/platforms/douyin.md`）。浏览器 UA 必须与实际系统一致（`default_user_agent`），否则详情接口返回空数据。
 - **模型配置**：新配置默认 faster-whisper large-v3-turbo，已有配置不迁移；模型档位只在 `model_catalog.py` 定义。扫描只检查文件，不能把文件存在等同于运行可用。

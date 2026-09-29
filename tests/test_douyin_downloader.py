@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import urllib.error
 from pathlib import Path
+from threading import Event
 from typing import Any
 
 import pytest
@@ -17,6 +18,7 @@ from v2t.downloaders.douyin import (
     select_audio_urls,
 )
 from v2t.models import SourceRef
+from v2t.progress import ProgressReporter, TaskCancelled
 
 
 def make_detail(**overrides: Any) -> dict[str, Any]:
@@ -184,6 +186,27 @@ def test_download_raises_when_all_urls_fail(tmp_path: Path) -> None:
     )
     with pytest.raises(DouyinError, match="音频下载失败"):
         downloader.download(douyin_source(), settings)
+
+
+def test_cancel_download_removes_partial_file(tmp_path: Path) -> None:
+    settings = Settings.from_workspace(tmp_path / ".v2t")
+    cancelled = Event()
+
+    class CancellingResponse(FakeResponse):
+        def read(self, size=-1):
+            data = super().read(size)
+            if data:
+                cancelled.set()
+            return data
+
+    downloader = DouyinDownloader(
+        fetch_detail=lambda url, **kwargs: {"aweme_detail": make_detail()},
+        opener=lambda request, timeout: CancellingResponse(b"partial"),
+    )
+    with pytest.raises(TaskCancelled):
+        downloader.download(douyin_source(), settings, progress=ProgressReporter("task", cancel_event=cancelled))
+    assert not list(settings.downloads_dir.glob("*.part"))
+    assert not list(settings.downloads_dir.glob("*.m4a"))
 
 
 def test_download_rejects_non_douyin_source(tmp_path: Path) -> None:

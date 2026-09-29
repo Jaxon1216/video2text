@@ -141,6 +141,17 @@ def test_api_transcribe_returns_task_and_video_can_be_edited(tmp_path: Path) -> 
     assert transcript_after.json()["text"] == "edited text\n"
 
 
+def test_api_cancel_distinguishes_missing_and_terminal_tasks(tmp_path: Path) -> None:
+    app, service, _, _ = build_test_app(tmp_path)
+    client = TestClient(app)
+    assert client.post("/api/tasks/missing/cancel").status_code == 404
+    created = client.post("/api/tasks/transcribe", json={"source": "BV1xx411c7XD"}).json()
+    task = service.wait_for_task(created["task_id"])
+    assert task.status == "completed"
+    response = client.post(f"/api/tasks/{task.id}/cancel")
+    assert response.status_code == 409
+
+
 def test_api_batch_transcribe_returns_multiple_tasks(tmp_path: Path) -> None:
     app, service, _, _ = build_test_app(tmp_path)
     client = TestClient(app)

@@ -100,6 +100,7 @@ class TaskRecord:
     provider: str
     model: str
     workspace_root: str
+    cancel_requested: bool = False
     progress_percent: float = 0.0
     current_stage: str = "queued"
     current_message: str = ""

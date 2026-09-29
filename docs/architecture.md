@@ -41,7 +41,7 @@ flowchart LR
 | `transcribers/` | `Transcriber.transcribe(audio_path, prompt, progress) -> dict` |
 | `factory.py` | 组装 pipeline：provider -> Transcriber（按 provider + model + 配置缓存，模型只加载一次），kind -> Downloader |
 | `pipeline.py` | 唯一的流程编排处 |
-| `tasks.py` | `ThreadPoolExecutor`（并发数 `V2T_TASK_WORKERS`，默认 1）；把进度快照写库并通知监听者 |
+| `tasks.py` | `ThreadPoolExecutor`（并发数 `V2T_TASK_WORKERS`，默认 1）；管理取消令牌，把进度快照写库并通知监听者 |
 | `progress.py` | 各阶段占总进度的区间：preparing / downloading / extracting_audio / transcribing / writing_outputs / indexing |
 | `library.py` | 登记结果、编辑后另存新版本、启动时扫描工作区补索引 |
 | `database.py` | SQLite 表结构与查询 |
@@ -70,7 +70,7 @@ flowchart LR
 
 ## 数据库表
 
-- `tasks` / `task_progress_events`：任务状态与进度事件
+- `tasks` / `task_progress_events`：任务状态、取消请求与进度事件；服务重启时遗留的活跃任务标为失败
 - `videos`：一条转写结果（`source_kind`、来源、标题、引擎、文件路径、当前版本指针）
 - `transcript_versions`：`kind=original|edited`，每个版本一个文件
 - `categories` / `tags` / `video_tags`：分类与标签
@@ -120,5 +120,7 @@ flowchart LR
 SenseVoice 文件规则参考 [FunASR 加载器](https://github.com/modelscope/FunASR/blob/main/runtime/python/onnxruntime/funasr_onnx/sensevoice_bin.py)，与当前包装器的非量化默认参数一致。
 
 任务进入终态时，先原子写入结果 ID / 错误信息与完成时间，再通知进度监听者，保证客户端停止轮询时已经取得完整终态数据。
+
+任务取消采用协作式检查：排队任务取消线程池 Future；运行任务在下载、抽音频、识别进度和阶段边界检查取消令牌。请求取消后先保持运行状态并设置 `cancel_requested`，实际停止后转为 `cancelled`。不可安全中断的单次模型调用完成后丢弃结果。ffmpeg 取消时终止子进程并清理未完成音频。
 
 交互式 bootstrap 显式重配默认引擎后同步其模型值，包括保持同一 SenseVoice / 火山引擎但修改目录或云模型的情况；普通加载配置仍不迁移旧值。
