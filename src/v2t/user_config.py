@@ -5,6 +5,7 @@ import os
 from dataclasses import asdict, dataclass, field
 
 from v2t.config import Settings
+from v2t.model_catalog import DEFAULT_FASTER_WHISPER_MODEL, resolve_model
 from v2t.i18n import DEFAULT_LANGUAGE, normalize_language
 
 ALL_PROVIDERS = ("faster-whisper", "whisper", "sensevoice", "volcengine")
@@ -45,7 +46,7 @@ class AppConfig:
     enabled_providers: list[str] = field(default_factory=lambda: [DEFAULT_PROVIDER])
     enabled_features: list[str] = field(default_factory=lambda: ["web"])
     default_provider: str = DEFAULT_PROVIDER
-    default_model: str = "small"
+    default_model: str = DEFAULT_FASTER_WHISPER_MODEL
     prefer_subtitles: bool = True
     faster_whisper: FasterWhisperConfig = field(default_factory=FasterWhisperConfig)
     sensevoice: SenseVoiceConfig = field(default_factory=SenseVoiceConfig)
@@ -85,13 +86,13 @@ class AppConfig:
 def apply_env_overrides(config: AppConfig) -> AppConfig:
     """Runtime-only overrides (Docker / CI); never written back to config.json."""
     provider = os.getenv("V2T_DEFAULT_PROVIDER", "").strip()
-    if provider:
-        config.default_provider = provider
-        if provider not in config.enabled_providers:
-            config.enabled_providers.append(provider)
     model = os.getenv("V2T_DEFAULT_MODEL", "").strip()
-    if model:
-        config.default_model = model
+    if provider or model:
+        selected_provider = provider or config.default_provider
+        config.default_model = resolve_model(config, selected_provider, model)
+        config.default_provider = selected_provider
+        if selected_provider not in config.enabled_providers:
+            config.enabled_providers.append(selected_provider)
     api_key = os.getenv("V2T_VOLCENGINE_API_KEY", "").strip()
     if api_key:
         config.volcengine.api_key = api_key

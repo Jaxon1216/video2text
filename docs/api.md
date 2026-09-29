@@ -32,6 +32,7 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
 ## 前端托管
 
 - `GET /api/config`：默认引擎、默认模型、可选引擎列表，供前端表单使用。
+- `GET /api/models`：`items` 按引擎分组，每组包含 `provider`、`default_model`、`enabled` 与 `models: [{id, label}]`；不包含云端密钥。
 - 所有不以 `/api/` 开头的路径都返回 `web/dist` 里的静态文件，找不到则返回 `index.html`（前端路由）。`web/dist` 不存在时返回 503 提示页。
 
 ## 通用响应习惯
@@ -78,6 +79,8 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
   "status": "queued"
 }
 ```
+
+`provider`、`model` 均可省略或为 null。省略引擎使用运行配置；省略模型时，同引擎使用配置默认值，换引擎则使用其独立默认值（Whisper small、SenseVoice 配置目录、火山配置模型、faster-whisper large-v3-turbo）。显式模型名/路径优先且保留自定义能力，未知引擎返回 400。批量接口使用同一规则。
 
 提交前会先校验输入能否识别（B站 / 抖音 / 本地文件），不能识别时返回 400：`{"detail": "无法识别的输入：..."}`。
 

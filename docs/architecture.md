@@ -105,3 +105,5 @@ flowchart LR
 文字稿列表的原链接复制按钮与详情链接独立，支持悬停、键盘与触屏，反馈复制结果；本地文件不显示该操作。
 
 模型选项统一定义在 `model_catalog.py`，CLI 配置向导复用该目录；默认模型解析按引擎隔离，显式模型名或路径优先。
+
+`/api/models` 提供共享模型目录，Web 按引擎切换选项。CLI、Web API、factory 都通过 `resolve_model` 解析默认值，环境变量/CLI 参数只覆盖运行配置。新建配置默认 faster-whisper large-v3-turbo；已有配置保留原值，旧文件缺少 model 字段时仍回退 small。自定义模型名和路径保留。

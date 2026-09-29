@@ -7,6 +7,22 @@ export interface AppConfig {
   enabled_providers: string[];
 }
 
+export interface ModelOption {
+  id: string;
+  label: string;
+}
+
+export interface ProviderModels {
+  provider: string;
+  default_model: string;
+  enabled: boolean;
+  models: ModelOption[];
+}
+
+export function getModels(): Promise<{ items: ProviderModels[] }> {
+  return request("/api/models");
+}
+
 export interface Task {
   id: string;
   status: TaskStatus;

@@ -5,6 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from v2t.config import Settings
+from v2t.model_catalog import resolve_model
 from v2t.downloaders import Downloader, DouyinDownloader, YtDlpDownloader
 from v2t.pipeline import V2TPipeline
 from v2t.transcribers import LocalWhisperTranscriber
@@ -33,16 +34,16 @@ def build_pipeline(
 
 def build_transcriber(*, config: AppConfig, provider: str | None = None, model: str | None = None) -> Transcriber:
     selected_provider = (provider or config.default_provider).strip().lower()
-    selected_model = (model or config.default_model).strip()
+    selected_model = resolve_model(config, selected_provider, model)
 
     if selected_provider == "faster-whisper":
         from v2t.transcribers.faster_whisper_local import FasterWhisperTranscriber
 
         options = config.faster_whisper
         return _cached(
-            (selected_provider, selected_model or "small", repr(options)),
+            (selected_provider, selected_model, repr(options)),
             lambda: FasterWhisperTranscriber(
-                model=selected_model or "small",
+                model=selected_model,
                 language=options.language,
                 device=options.device,
                 compute_type=options.compute_type,
@@ -53,8 +54,8 @@ def build_transcriber(*, config: AppConfig, provider: str | None = None, model: 
         )
     if selected_provider == "whisper":
         return _cached(
-            (selected_provider, selected_model or "small"),
-            lambda: LocalWhisperTranscriber(model=selected_model or "small"),
+            (selected_provider, selected_model),
+            lambda: LocalWhisperTranscriber(model=selected_model),
         )
     if selected_provider == "sensevoice":
         from v2t.transcribers.sensevoice_local import SenseVoiceSmallTranscriber

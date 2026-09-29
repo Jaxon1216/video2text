@@ -37,6 +37,15 @@ def page():
                 "config": dict(default_provider="faster-whisper", default_model="small",
                                providers=["faster-whisper", "whisper", "sensevoice", "volcengine"],
                                enabled_providers=["faster-whisper"]),
+                "models": {"items": [
+                    {"provider": "faster-whisper", "default_model": "small", "enabled": True,
+                     "models": [{"id": value, "label": value} for value in ["large-v3-turbo", "small"]]},
+                    {"provider": "whisper", "default_model": "small", "enabled": False,
+                     "models": [{"id": "small", "label": "small"}]},
+                    {"provider": "sensevoice", "default_model": "", "enabled": False, "models": []},
+                    {"provider": "volcengine", "default_model": "bigmodel", "enabled": False,
+                     "models": [{"id": "bigmodel", "label": "bigmodel"}]},
+                ]},
                 "tasks": {"items": [TASK, {**TASK, "id": "failed", "status": "failed", "error_message": "识别失败"}]},
                 "tasks/demo": TASK,
                 "tasks/transcribe": {"task_id": "demo"},
@@ -195,3 +204,20 @@ def test_copy_link_failure_is_visible(page):
     button.focus()
     page.keyboard.press("Enter")
     expect(page.get_by_role("status")).to_contain_text("浏览器不允许复制")
+
+
+def test_switching_provider_selects_its_own_model(page):
+    from playwright.sync_api import expect
+
+    page.goto(URL)
+    page.get_by_role("button", name="识别选项", exact=False).click()
+    model = page.get_by_role("combobox", name="模型", exact=True)
+    expect(model).to_be_visible()
+    model.select_option("large-v3-turbo")
+    page.get_by_role("combobox", name="识别引擎").select_option("volcengine")
+    expect(model).to_have_value("bigmodel")
+    expect(model.get_by_role("option", name="large-v3-turbo", exact=False)).to_have_count(0)
+    page.get_by_role("combobox", name="识别引擎").select_option("sensevoice")
+    page.get_by_label("粘贴链接").fill("BV1xx411c7XD")
+    expect(page.get_by_role("button", name="转成文字")).to_be_disabled()
+    expect(page.get_by_text("请先配置 SenseVoice 本地模型目录", exact=False)).to_be_visible()

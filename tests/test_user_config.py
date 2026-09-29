@@ -51,3 +51,21 @@ def test_apply_env_overrides_is_runtime_only(tmp_path: Path, monkeypatch) -> Non
     assert config.enabled_providers == ["faster-whisper", "volcengine"]
     assert config.prefer_subtitles is False
     assert "secret-key" not in settings.config_path.read_text(encoding="utf-8")
+
+
+def test_new_configs_use_turbo_but_legacy_files_keep_small(tmp_path):
+    settings = Settings.from_workspace(tmp_path)
+    assert AppConfig.load(settings).default_model == 'large-v3-turbo'
+    settings.ensure_directories()
+    settings.config_path.write_text('{}')
+    assert AppConfig.load(settings).default_model == 'small'
+    settings.config_path.write_text('{"default_model": "medium"}')
+    assert AppConfig.load(settings).default_model == 'medium'
+
+
+def test_provider_environment_override_selects_its_own_model(monkeypatch):
+    from v2t.user_config import apply_env_overrides
+    config = AppConfig(default_model='medium')
+    monkeypatch.setenv('V2T_DEFAULT_PROVIDER', 'volcengine')
+    monkeypatch.delenv('V2T_DEFAULT_MODEL', raising=False)
+    assert apply_env_overrides(config).default_model == 'bigmodel'

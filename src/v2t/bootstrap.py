@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from v2t.config import Settings
-from v2t.model_catalog import FASTER_WHISPER_MODELS, WHISPER_MODELS, model_description_key
+from v2t.model_catalog import FASTER_WHISPER_MODELS, WHISPER_MODELS, model_description_key, provider_default_model, resolve_model
 from v2t.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, tr
 from v2t.user_config import ALL_FEATURES, ALL_PROVIDERS, AppConfig
 
@@ -220,6 +220,7 @@ def run_bootstrap(*, settings: Settings, interactive: bool = True) -> AppConfig:
         elif provider == "volcengine":
             _configure_volcengine(config, lang)
 
+    previous_provider = config.default_provider
     # ── 5. Pick default provider ─────────────────────────────
     console.print()
     console.rule(f"[bold]{tr(lang, 'bootstrap_step_default')}[/bold]")
@@ -239,6 +240,9 @@ def run_bootstrap(*, settings: Settings, interactive: bool = True) -> AppConfig:
         config.default_model = selected_whisper_model
     if config.default_provider == "faster-whisper" and selected_faster_whisper_model:
         config.default_model = selected_faster_whisper_model
+
+    if config.default_provider in ("sensevoice", "volcengine") and config.default_provider != previous_provider:
+        config.default_model = provider_default_model(config, config.default_provider)
 
     # ── Save and show next steps ─────────────────────────────
     config.save(settings)
@@ -278,7 +282,7 @@ def _configure_faster_whisper(config: AppConfig, lang: str) -> str:
             {"name": f"{model:<14} — " + tr(lang, model_description_key(model)), "value": model}
             for model in FASTER_WHISPER_MODELS
         ],
-        default=config.default_model if config.default_model in FASTER_WHISPER_MODELS else "small",
+        default=resolve_model(config, "faster-whisper") if resolve_model(config, "faster-whisper") in FASTER_WHISPER_MODELS else provider_default_model(config, "faster-whisper"),
     ).execute()
 
 
@@ -289,7 +293,7 @@ def _configure_whisper(config: AppConfig, lang: str) -> str:
             {"name": f"{model:<8} — " + tr(lang, model_description_key(model)), "value": model}
             for model in WHISPER_MODELS
         ],
-        default=config.default_model if config.default_model in WHISPER_MODELS else "small",
+        default=resolve_model(config, "whisper") if resolve_model(config, "whisper") in WHISPER_MODELS else "small",
     ).execute()
     return whisper_model
 

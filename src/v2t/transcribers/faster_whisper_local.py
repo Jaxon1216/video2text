@@ -5,6 +5,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from v2t.model_catalog import DEFAULT_FASTER_WHISPER_MODEL
 from v2t.i18n import dependency_sync_guidance
 from v2t.progress import ProgressReporter
 from v2t.segments import Segment, join_text
@@ -21,7 +22,7 @@ class FasterWhisperTranscriber(Transcriber):
     def __init__(
         self,
         *,
-        model: str = "small",
+        model: str = DEFAULT_FASTER_WHISPER_MODEL,
         language: str = "zh",
         device: str = "auto",
         compute_type: str = "auto",

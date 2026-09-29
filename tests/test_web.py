@@ -360,3 +360,44 @@ def test_api_document_segments_and_export(tmp_path: Path) -> None:
     assert edited == {**edited, "has_timestamps": False, "version_kind": "edited", "segments": []}
     assert client.get(f"/api/videos/{video_id}/export?format=txt").text == "edited text\n"
     assert client.get(f"/api/videos/{video_id}/export?format=srt").status_code == 400
+
+
+def test_api_provider_aware_defaults_and_custom_models(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from v2t.user_config import AppConfig
+    _, service, database, library = build_test_app(tmp_path)
+    config = AppConfig(default_model='medium')
+    config.sensevoice.model_dir = '/models/sensevoice'
+    config.volcengine.api_key = 'must-not-leak'
+    app = create_app(task_service=service, database=database, library=library, config=config)
+    calls = []
+    def submit(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(id='new', status='queued')
+    monkeypatch.setattr(service, 'submit_transcription', submit)
+    client = TestClient(app)
+    for options, provider, model in [({}, 'faster-whisper', 'medium'), ({'provider': 'volcengine'}, 'volcengine', 'bigmodel'),
+                                      ({'provider': 'whisper'}, 'whisper', 'small'),
+                                      ({'provider': 'sensevoice'}, 'sensevoice', '/models/sensevoice'),
+                                      ({'model': '/custom/model'}, 'faster-whisper', '/custom/model')]:
+        response = client.post('/api/tasks/transcribe', json={'source': 'BV1xx411c7XD', **options})
+        assert response.status_code == 200
+        assert calls[-1]['provider'] == provider
+        assert calls[-1]['model'] == model
+    assert client.post('/api/tasks/transcribe', json={'source': 'BV1xx411c7XD', 'provider': 'unknown'}).status_code == 400
+    catalog = client.get('/api/models')
+    assert catalog.status_code == 200
+    assert 'must-not-leak' not in catalog.text
+    groups = {group['provider']: group for group in catalog.json()['items']}
+    assert groups['faster-whisper']['models'][0]['id'] == 'large-v3-turbo'
+    assert groups['volcengine']['default_model'] == 'bigmodel'
+
+
+def test_batch_uses_runtime_model_defaults(tmp_path):
+    from v2t.user_config import AppConfig
+    _, service, database, library = build_test_app(tmp_path)
+    app = create_app(task_service=service, database=database, library=library, config=AppConfig(default_model='medium'))
+    response = TestClient(app).post('/api/tasks/batch', json={'sources': ['BV1xx411c7XD'], 'provider': 'volcengine'})
+    task = response.json()['items'][0]
+    assert task['provider'] == 'volcengine' and task['model'] == 'bigmodel'
+    service.wait_for_task(task['id'])

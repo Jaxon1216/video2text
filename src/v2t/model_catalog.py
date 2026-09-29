@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from v2t.user_config import AppConfig
 
-FASTER_WHISPER_MODELS = ("tiny", "base", "small", "medium", "large-v3-turbo", "large-v3")
+FASTER_WHISPER_MODELS = ("large-v3-turbo", "large-v3", "medium", "small", "base", "tiny")
 WHISPER_MODELS = ("tiny", "base", "small", "medium", "large")
-DEFAULT_FASTER_WHISPER_MODEL = "small"
+DEFAULT_FASTER_WHISPER_MODEL = "large-v3-turbo"
 
 
 def provider_default_model(config: AppConfig, provider: str) -> str:

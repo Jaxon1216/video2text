@@ -40,3 +40,15 @@ def test_bootstrap_sync_only_requires_existing_config(tmp_path) -> None:
     result = runner.invoke(app, ["bootstrap", "--sync-only", "--workspace", str(workspace)])
     assert result.exit_code == 1
     assert "请先运行一次 bootstrap" in result.stderr
+
+
+def test_cli_runtime_provider_override_uses_provider_model(tmp_path):
+    from v2t.cli import _load_runtime
+    from v2t.config import Settings
+    from v2t.user_config import AppConfig
+    settings = Settings.from_workspace(tmp_path)
+    AppConfig(default_model='medium').save(settings)
+    _, config = _load_runtime(workspace=tmp_path, provider='volcengine', allow_bootstrap=False)
+    assert config.default_model == 'bigmodel'
+    _, config = _load_runtime(workspace=tmp_path, provider='whisper', model='/tmp/custom.pt', allow_bootstrap=False)
+    assert config.default_model == '/tmp/custom.pt'

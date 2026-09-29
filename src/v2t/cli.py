@@ -11,6 +11,7 @@ from v2t import __version__
 from v2t.bootstrap import ensure_bootstrap, run_bootstrap
 from v2t.cli_progress import TqdmTaskRenderer
 from v2t.config import Settings
+from v2t.model_catalog import resolve_model
 from v2t.database import AppDatabase
 from v2t.factory import build_pipeline
 from v2t.formatters import EXPORT_FORMATS, export_document
@@ -310,10 +311,9 @@ def _load_runtime(
             allow_prompt=allow_bootstrap and sys.stdin.isatty(),
         )
     )
-    if provider:
-        config.default_provider = provider
-    if model:
-        config.default_model = model
+    selected_provider = (provider or config.default_provider).strip().lower()
+    config.default_model = resolve_model(config, selected_provider, model)
+    config.default_provider = selected_provider
     return settings, config
 
 
@@ -345,6 +345,7 @@ def _run_server(*, host: str, port: int, provider: str | None, model: str | None
         default_provider=provider or config.default_provider,
         default_model=model or config.default_model,
         enabled_providers=config.enabled_providers,
+        config=config,
     )
     from v2t.logging_config import server_log_config
 
@@ -378,7 +379,7 @@ def _build_task_service(
             settings=settings,
             config=config,
             provider=selected_provider or provider or config.default_provider,
-            model=selected_model or model or config.default_model,
+            model=selected_model or None,
         ),
     )
     service.ensure_indexed()

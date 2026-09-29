@@ -46,3 +46,9 @@
 - 背景：本机网络下 Docker Hub、ghcr.io 拉取超时，`deb.debian.org` 不稳定；PyPI 与 Playwright CDN 可用。
 - 决定：前端构建和运行时都基于 `python:3.12-slim`（前端用 apt 装 Node 20）；uv 通过 pip 安装；不写 `# syntax=`；`APT_MIRROR` / `PIP_INDEX_URL` / `PLAYWRIGHT_DOWNLOAD_HOST` 作为可选构建参数；镜像不含 openai-whisper（torch）。
 - 原因：网络受限时只要本地有一个基础镜像就能构建；镜像体积可控。
+
+## D9 v0.2.0 先完成体验与现有模型管理
+
+- 决定：本轮拆分新建转写、任务、文字稿页面，完善交互、轮询和模型选择。Qwen 接入、任务中断、音频复用延期。
+- 默认策略：新配置默认 faster-whisper large-v3-turbo；已有配置不迁移，旧文件缺字段沿用 small。其他引擎独立解析默认值，显式模型名/路径优先。
+- 原因：先降低现有流程的使用成本；新引擎与运行中中断需独立验证，避免扩大这一版本的技术风险。

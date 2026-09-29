@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
 from urllib.parse import quote
@@ -15,7 +16,8 @@ from v2t.inputs import parse_source, parse_source_list, safe_stem
 from v2t.library import WorkspaceLibrary
 from v2t.models import TaskRecord, TranscriptDocument
 from v2t.tasks import TaskService
-from v2t.user_config import ALL_PROVIDERS
+from v2t.user_config import ALL_PROVIDERS, AppConfig
+from v2t.model_catalog import model_choices, resolve_model
 
 DEFAULT_WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
 FRONTEND_MISSING_HTML = """<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>video2text</title>
@@ -35,16 +37,16 @@ def resolve_web_dist() -> Path | None:
 
 class TranscribeTaskRequest(BaseModel):
     source: str
-    provider: str = "faster-whisper"
-    model: str = "small"
+    provider: str | None = None
+    model: str | None = None
     prompt: str = ""
 
 
 class BatchTranscribeTaskRequest(BaseModel):
     sources: list[str] | None = None
     source_text: str | None = None
-    provider: str = "faster-whisper"
-    model: str = "small"
+    provider: str | None = None
+    model: str | None = None
     prompt: str = ""
 
 
@@ -67,21 +69,41 @@ def create_app(
     task_service: TaskService,
     library: WorkspaceLibrary,
     database: AppDatabase,
-    default_provider: str = "faster-whisper",
-    default_model: str = "small",
+    default_provider: str | None = None,
+    default_model: str | None = None,
     enabled_providers: list[str] | None = None,
+    config: AppConfig | None = None,
     web_dist: Path | None = None,
 ) -> FastAPI:
+    runtime_config = deepcopy(config) if config is not None else AppConfig()
+    if default_provider is not None or default_model is not None:
+        selected_provider = default_provider or runtime_config.default_provider
+        runtime_config.default_model = resolve_model(runtime_config, selected_provider, default_model)
+        runtime_config.default_provider = selected_provider
+    if enabled_providers is not None:
+        runtime_config.enabled_providers = list(enabled_providers)
+
+    def task_options(provider: str | None, model: str | None) -> tuple[str, str]:
+        selected_provider = (provider or runtime_config.default_provider).strip().lower()
+        try:
+            selected_model = resolve_model(runtime_config, selected_provider, model)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if selected_provider == "sensevoice" and not selected_model:
+            raise HTTPException(status_code=400, detail="请先配置 SenseVoice 本地模型目录")
+        return selected_provider, selected_model
+
     app = FastAPI(title="video2text")
     dist = web_dist if web_dist is not None else resolve_web_dist()
 
     @app.post("/api/tasks/transcribe")
     async def create_transcription_task(payload: TranscribeTaskRequest) -> JSONResponse:
         _validate_sources([payload.source])
+        provider, model = task_options(payload.provider, payload.model)
         task = task_service.submit_transcription(
             source=payload.source,
-            provider=payload.provider,
-            model=payload.model,
+            provider=provider,
+            model=model,
             prompt=payload.prompt,
         )
         return JSONResponse({"task_id": task.id, "status": task.status})
@@ -96,11 +118,12 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         _validate_sources(sources)
+        provider, model = task_options(payload.provider, payload.model)
         tasks = _submit_transcription_tasks(
             task_service,
             sources=sources,
-            provider=payload.provider,
-            model=payload.model,
+            provider=provider,
+            model=model,
             prompt=payload.prompt,
         )
         return JSONResponse(
@@ -316,12 +339,21 @@ def create_app(
     async def get_config() -> JSONResponse:
         return JSONResponse(
             {
-                "default_provider": default_provider,
-                "default_model": default_model,
+                "default_provider": runtime_config.default_provider,
+                "default_model": runtime_config.default_model,
                 "providers": list(ALL_PROVIDERS),
-                "enabled_providers": enabled_providers or [default_provider],
+                "enabled_providers": runtime_config.enabled_providers,
             }
         )
+
+    @app.get("/api/models")
+    async def get_models() -> JSONResponse:
+        return JSONResponse({"items": [
+            {"provider": provider, "default_model": resolve_model(runtime_config, provider),
+             "enabled": provider in runtime_config.enabled_providers,
+             "models": model_choices(runtime_config, provider)}
+            for provider in ALL_PROVIDERS
+        ]})
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_frontend(full_path: str) -> Response:
