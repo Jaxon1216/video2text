@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "video2text"
-version = "0.1.0"
+version = "0.2.0"
 description = "Turn Bilibili / Douyin videos into timestamped transcripts ready for AI."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"

@@ -53,7 +53,7 @@ uv run video2text tx "<链接>" --prompt "线程池、核心线程、阻塞队�
 uv run video2text batch --file sources.txt
 ```
 
-Web 界面（首次需要构建前端，需要 Node 20+）：
+Web 界面（支持新建转写、任务列表、文字稿历史，需要 Node 20+ 构建前端）：
 
 ```bash
 (cd web && npm install && npm run build)
@@ -62,7 +62,7 @@ uv run video2text ui   # http://127.0.0.1:8000
 
 在文字稿页点 **Copy for AI**，会复制“提示语 + 视频信息 + 带时间戳的文字稿”，直接粘贴给 ChatGPT / Claude 即可。
 
-首次使用 faster-whisper 会从 HuggingFace 下载模型；国内网络请先 `export HF_ENDPOINT=https://hf-mirror.com`。
+新配置默认 faster-whisper `large-v3-turbo`，首次识别时按需下载模型；模型选择页会显示本机缓存状态。国内网络请先 `export HF_ENDPOINT=https://hf-mirror.com`。
 
 ## Docker
 

@@ -44,6 +44,8 @@ uv run video2text ui   # http://127.0.0.1:8000
 
 Docker: `docker compose up -d --build`, then open http://localhost:8000 (details in [docs/docker.md](docs/docker.md)).
 
+The web UI has separate pages for new transcriptions, task status, and transcript history. New configurations default to faster-whisper `large-v3-turbo`; existing settings are preserved. The model picker shows local cache status and refreshes it without downloading weights.
+
 See [AGENTS.md](AGENTS.md) and [docs/](docs/) for architecture, development and API docs.
 
 ## License

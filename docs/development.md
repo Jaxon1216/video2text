@@ -37,7 +37,7 @@ npm run build    # 产物在 web/dist，由 FastAPI 托管
 ## 配置
 
 - 工作区默认 `./.v2t`（`V2T_HOME` 或 `--workspace` 覆盖），里面的 `config.json` 保存默认引擎和云 ASR key，已被 `.gitignore` 忽略。
-- 首次运行会进入配置向导；非交互环境（如后台服务）会写入默认配置（faster-whisper small，中文）。
+- 首次运行会进入配置向导；非交互环境（如后台服务）会写入默认配置（faster-whisper large-v3-turbo，中文）。
 - faster-whisper 的语言、设备、beam_size、VAD 在 `config.json` 的 `faster_whisper` 段调整；模型缓存在 HuggingFace 默认目录（`~/.cache/huggingface`），国内需 `HF_ENDPOINT=https://hf-mirror.com`。
 - 平台相关的环境变量见 `docs/platforms/`。
 
