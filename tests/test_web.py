@@ -1,10 +1,14 @@
 import hashlib
+import json
+import wave
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from v2t.config import Settings
+from v2t.audio_cache import AudioCache
 from v2t.database import AppDatabase
+from v2t.inputs import parse_source
 from v2t.library import WorkspaceLibrary
 from v2t.models import SourceRef, TranscriptResult
 from v2t.tasks import TaskService
@@ -17,8 +21,9 @@ class FakePipeline:
         self.provider = provider
         self.model = model
 
-    def transcribe(self, source: str, *, prompt: str | None = None, output: Path | None = None, progress=None) -> TranscriptResult:
-        source_id = hashlib.sha1(source.encode("utf-8")).hexdigest()[:12]
+    def transcribe(self, source: str, *, prompt: str | None = None, output: Path | None = None,
+                   progress=None, force_asr: bool = False) -> TranscriptResult:
+        source_id = hashlib.sha1(f"{source}:{self.model}".encode("utf-8")).hexdigest()[:12]
         transcript_path = self.settings.transcripts_original_dir / f"demo-{source_id}.txt"
         metadata_path = self.settings.metadata_dir / f"demo-{source_id}.json"
         transcript_path.write_text("demo text\n", encoding="utf-8")
@@ -150,6 +155,45 @@ def test_api_cancel_distinguishes_missing_and_terminal_tasks(tmp_path: Path) -> 
     assert task.status == "completed"
     response = client.post(f"/api/tasks/{task.id}/cancel")
     assert response.status_code == 409
+
+
+def test_retranscribe_endpoint_creates_independent_force_asr_task(tmp_path: Path) -> None:
+    app, service, database, _ = build_test_app(tmp_path)
+    client = TestClient(app)
+    first_id = client.post("/api/tasks/transcribe", json={"source": "BV1xx411c7XD", "provider": "whisper", "model": "small"}).json()["task_id"]
+    first = service.wait_for_task(first_id)
+    assert client.post("/api/videos/999/retranscribe", json={"provider": "whisper", "model": "medium"}).status_code == 404
+    response = client.post(f"/api/videos/{first.video_id}/retranscribe",
+                           json={"provider": "whisper", "model": "medium", "prompt": "线程池"})
+    assert response.status_code == 200
+    second = service.wait_for_task(response.json()["task_id"])
+    assert second.status == "completed" and second.model == "medium"
+    assert second.video_id != first.video_id
+    assert len(database.list_videos()) == 2
+
+
+def test_retranscribe_imports_matching_legacy_audio(tmp_path: Path) -> None:
+    app, service, database, library = build_test_app(tmp_path)
+    client = TestClient(app)
+    first_id = client.post("/api/tasks/transcribe", json={"source": "BV1xx411c7XD"}).json()["task_id"]
+    first = service.wait_for_task(first_id)
+    video = database.get_video(first.video_id)
+    audio_path = Path(video["audio_path"])
+    with wave.open(str(audio_path), "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(16000)
+        audio.writeframes(b"\x00\x00" * 160)
+    Path(video["metadata_path"]).write_text(json.dumps({
+        "source": {"kind": "bilibili", "raw_input": "BV1xx411c7XD", "bv": "BV1xx411c7XD",
+                   "url": "https://www.bilibili.com/video/BV1xx411c7XD"},
+        "download": {"platform": "bilibili", "id": "BV1xx411c7XD", "title": "demo"},
+    }), encoding="utf-8")
+    assert AudioCache(library.settings).lookup(parse_source("BV1xx411c7XD")) is None
+    response = client.post(f"/api/videos/{first.video_id}/retranscribe", json={"provider": "whisper", "model": "small"})
+    assert response.status_code == 200
+    assert AudioCache(library.settings).lookup(parse_source("BV1xx411c7XD")) is not None
+    service.wait_for_task(response.json()["task_id"])
 
 
 def test_api_batch_transcribe_returns_multiple_tasks(tmp_path: Path) -> None:

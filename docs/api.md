@@ -271,6 +271,12 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
 
 返回单个视频对象，结构与列表项一致。
 
+### 2a. 换模型重转写
+
+`POST /api/videos/{video_id}/retranscribe`
+
+请求体可传 `provider`、`model`、`prompt`；前两项遵循新建任务的默认值解析规则。响应为 `{"task_id": "...", "status": "queued"}`，不存在的视频返回 404。该任务强制 ASR：先校验并导入该文字稿关联的旧 WAV，再按平台视频 ID（B站另加分 P）查完整音频缓存；缓存未命中时重新下载与抽音频。新文字稿独立入库，原稿保留。普通 `POST /api/tasks/transcribe` 仍优先使用平台字幕。
+
 ### 3. 查询当前文本
 
 `GET /api/videos/{video_id}/transcript`

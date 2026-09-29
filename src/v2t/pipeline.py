@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import uuid
 from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
+from v2t.audio_cache import AudioCache
 from v2t.config import Settings
 from v2t.downloaders.base import Downloader
 from v2t.inputs import parse_source, safe_stem
@@ -37,6 +39,7 @@ class V2TPipeline:
         prompt: str | None = None,
         output: Path | None = None,
         progress: ProgressReporter | None = None,
+        force_asr: bool = False,
     ) -> TranscriptResult:
         self.settings.ensure_directories()
         if progress is not None:
@@ -46,29 +49,54 @@ class V2TPipeline:
         subtitle: SubtitleResult | None = None
         audio_path: Path | None = None
         video_path: Path | None = None
+        platform_metadata: dict | None = None
+        webpage_url: str | None = None
 
         if source.kind in REMOTE_SOURCE_KINDS:
             downloader = self.downloaders.get(source.kind)
             if downloader is None:
                 raise RuntimeError(f"no downloader registered for source kind: {source.kind}")
-            if self.prefer_subtitles:
+            if self.prefer_subtitles and not force_asr:
                 subtitle = self._try_subtitles(downloader, source, progress)
             if subtitle is not None:
                 source = subtitle.source
                 base_name = subtitle.title or source.display_name
             else:
-                downloaded = downloader.download(source, self.settings, progress=progress)
-                source = downloaded.source
-                audio_path = self._extract_audio(
-                    downloaded.video_path,
-                    safe_stem(downloaded.title or source.display_name),
-                    progress=progress,
-                )
-                base_name = downloaded.title or source.display_name
-                video_path = downloaded.video_path
+                original_source = source
+                cache = AudioCache(self.settings)
+                with cache.lock_for(source):
+                    cached = cache.lookup(source)
+                    if cached is not None:
+                        audio_path = cached.audio_path
+                        base_name = cached.title
+                        video_path = cached.video_path
+                        platform_metadata = cached.download_metadata
+                        webpage_url = cached.webpage_url
+                    else:
+                        if progress is not None:
+                            progress.check_cancelled()
+                        downloaded = downloader.download(source, self.settings, progress=progress)
+                        source = downloaded.source
+                        audio_path = self._extract_audio(
+                            downloaded.video_path,
+                            safe_stem(f"{downloaded.title or source.display_name}-{uuid.uuid4().hex[:12]}"),
+                            progress=progress,
+                        )
+                        base_name = downloaded.title or source.display_name
+                        video_path = downloaded.video_path
+                        platform_metadata = downloaded.metadata
+                        webpage_url = downloaded.webpage_url
+                        if progress is not None:
+                            progress.check_cancelled()
+                        cached = cache.store(source, audio_path, title=base_name,
+                                             webpage_url=webpage_url, download_metadata=platform_metadata,
+                                             video_path=video_path,
+                                             aliases=[original_source.url or "", original_source.raw_input])
+                        if cached is not None:
+                            audio_path = cached.audio_path
         elif source.kind == "video":
             assert source.path is not None
-            audio_path = self._extract_audio(source.path, safe_stem(source.display_name), progress=progress)
+            audio_path = self._extract_audio(source.path, safe_stem(f"{source.display_name}-{uuid.uuid4().hex[:12]}"), progress=progress)
             base_name = source.display_name
             video_path = source.path
         else:
@@ -82,7 +110,7 @@ class V2TPipeline:
             for segment in segments:
                 text = join_text(text, str(segment["text"]))
             engine, model, language, transcript_source = "subtitle", subtitle.language, subtitle.language, "subtitle"
-            platform_metadata: dict | None = subtitle.metadata
+            platform_metadata = subtitle.metadata
             webpage_url = subtitle.webpage_url
         else:
             assert audio_path is not None
@@ -95,8 +123,6 @@ class V2TPipeline:
             model = str(transcription.get("model") or "")
             language = transcription.get("language")
             transcript_source = "asr"
-            platform_metadata = downloaded.metadata if downloaded else None
-            webpage_url = downloaded.webpage_url if downloaded else None
 
         if progress is not None:
             progress.running("writing_outputs", message="writing_outputs", indeterminate=True)
@@ -110,6 +136,7 @@ class V2TPipeline:
                 "raw_input": source.raw_input,
                 "kind": source.kind,
                 "bv": source.bv,
+                "page": source.page,
                 "video_id": source.video_id or (platform_metadata or {}).get("id"),
                 "url": source.url,
                 "webpage_url": webpage_url,
@@ -253,8 +280,8 @@ class V2TPipeline:
 
     def _resolve_output_path(self, base_name: str, output: Path | None) -> Path:
         if output is None:
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            return self.settings.transcripts_original_dir / f"{safe_stem(base_name)}-{timestamp}.txt"
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+            return self.settings.transcripts_original_dir / f"{safe_stem(base_name)}-{timestamp}-{uuid.uuid4().hex[:12]}.txt"
 
         output = output.expanduser()
         if output.suffix.lower() != ".txt":

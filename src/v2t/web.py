@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel
 
+from v2t.audio_cache import AudioCache
 from v2t.database import AppDatabase
 from v2t.formatters import export_document
 from v2t.inputs import parse_source, parse_source_list, safe_stem
@@ -46,6 +47,12 @@ class TranscribeTaskRequest(BaseModel):
 class BatchTranscribeTaskRequest(BaseModel):
     sources: list[str] | None = None
     source_text: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    prompt: str = ""
+
+
+class RetranscribeRequest(BaseModel):
     provider: str | None = None
     model: str | None = None
     prompt: str = ""
@@ -194,6 +201,27 @@ def create_app(
                 },
             }
         )
+
+    @app.post("/api/videos/{video_id}/retranscribe")
+    async def retranscribe_video(video_id: int, payload: RetranscribeRequest) -> JSONResponse:
+        video = database.get_video(video_id)
+        if video is None:
+            raise HTTPException(status_code=404, detail="video not found")
+        provider, model = task_options(payload.provider, payload.model)
+        source_input = str(video["source_input"])
+        try:
+            source = parse_source(source_input)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if source.kind in ("bilibili", "douyin") and video.get("audio_path"):
+            try:
+                metadata = library.load_video_metadata(video_id)
+                AudioCache(library.settings).import_legacy(source, Path(str(video["audio_path"])), metadata)
+            except (OSError, ValueError):
+                pass
+        task = task_service.submit_transcription(source=source_input, provider=provider, model=model,
+                                                 prompt=payload.prompt, force_asr=True)
+        return JSONResponse({"task_id": task.id, "status": task.status})
 
     @app.get("/api/videos/{video_id}")
     async def get_video_api(video_id: int) -> JSONResponse:

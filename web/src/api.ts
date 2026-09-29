@@ -158,6 +158,10 @@ export function getDocument(videoId: number): Promise<TranscriptDocument> {
   return request<TranscriptDocument>(`/api/videos/${videoId}/document`);
 }
 
+export function retranscribeVideo(videoId: number, options: SubmitOptions): Promise<{ task_id: string; status: TaskStatus }> {
+  return request(`/api/videos/${videoId}/retranscribe`, { method: "POST", body: JSON.stringify(options) });
+}
+
 export function exportUrl(videoId: number, format: ExportFormat): string {
   return `/api/videos/${videoId}/export?format=${format}`;
 }

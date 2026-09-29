@@ -286,3 +286,20 @@ def test_mobile_library_keeps_metadata_readable_and_copy_visible(page):
     tag = page.locator('.library-meta .tag')
     assert tag.bounding_box()['height'] < 30
     assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+
+
+def test_retranscribe_from_video_detail_selects_model_and_opens_new_task(page):
+    from playwright.sync_api import expect
+
+    submitted = []
+    def create(route):
+        submitted.append(route.request.post_data_json)
+        route.fulfill(json={"task_id": "new-task", "status": "queued"})
+    page.route("**/api/videos/1/retranscribe", create)
+    page.goto(f"{URL}/videos/1")
+    page.get_by_role("button", name="换模型重转写").click()
+    page.get_by_role("combobox", name="模型").select_option("large-v3-turbo")
+    page.get_by_role("textbox", name="术语提示").fill("线程池")
+    page.get_by_role("button", name="开始重转写").click()
+    expect(page).to_have_url(f"{URL}/tasks/new-task")
+    assert submitted == [{"provider": "faster-whisper", "model": "large-v3-turbo", "prompt": "线程池"}]

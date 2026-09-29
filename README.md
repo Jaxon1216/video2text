@@ -62,6 +62,8 @@ uv run video2text ui   # http://127.0.0.1:8000
 
 在文字稿页点 **Copy for AI**，会复制“提示语 + 视频信息 + 带时间戳的文字稿”，直接粘贴给 ChatGPT / Claude 即可。
 
+文字稿详情还可选新模型重转写；已有完整音频会复用，新结果单独保留。任务列表和详情页支持中断排队或正在处理的任务。
+
 新配置默认 faster-whisper `large-v3-turbo`，首次识别时按需下载模型；模型选择页会显示本机缓存状态。国内网络请先 `export HF_ENDPOINT=https://hf-mirror.com`。
 
 ## Docker

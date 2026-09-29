@@ -187,3 +187,21 @@ def test_error_after_cancel_request_stays_cancelled(tmp_path):
     service.wait_for_task(task.id)
     assert database.get_task(task.id).status == "cancelled"
     service.executor.shutdown()
+
+
+def test_retranscription_passes_force_asr_to_pipeline(tmp_path):
+    settings = Settings.from_workspace(tmp_path)
+    database = AppDatabase(settings)
+    observed = []
+
+    class RecordingPipeline(FakePipeline):
+        def transcribe(self, source, *, force_asr=False, **kwargs):
+            observed.append(force_asr)
+            return super().transcribe(source, **kwargs)
+
+    service = TaskService(database=database, library=WorkspaceLibrary(settings, database),
+                          pipeline_factory=lambda provider, model: RecordingPipeline(settings, provider, model))
+    task = service.submit_transcription(source="BV1xx411c7XD", provider="whisper", model="medium", force_asr=True)
+    assert service.wait_for_task(task.id).status == "completed"
+    assert observed == [True]
+    service.executor.shutdown()

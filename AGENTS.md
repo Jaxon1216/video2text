@@ -42,8 +42,9 @@ src/v2t/
   models.py         数据类：SourceRef、DownloadResult、TranscriptResult、TranscriptDocument、TaskRecord...
   model_catalog.py  CLI / Web 共用的模型目录与各引擎默认值解析
   model_inventory.py 只读磁盘模型扫描（不联网、不加载权重）
+  audio_cache.py    按平台视频 ID / 分 P 缓存完整 16k WAV，支持旧音频导入
   factory.py        按 provider 组装 Transcriber（按配置缓存复用），按 source.kind 选择 Downloader
-  pipeline.py       核心流程：下载 -> ffmpeg 抽 16k wav -> 转写 -> 写 txt + metadata json（含 segments）
+  pipeline.py       核心流程：字幕或缓存 -> 下载 -> ffmpeg 抽 16k wav -> 转写 -> 写 txt + metadata json（含 segments）
   segments.py       segment 结构 {start, end, text}（秒）与归一化
   formatters.py     导出渲染：带时间戳 txt / plain / md / srt
   evaluation.py     评测指标：CER、术语召回
@@ -71,6 +72,7 @@ docs/               架构、路线图、决策、平台说明、API
 - **新增 ASR**：`transcribers/` 新建实现，返回的 `segments` 必须用 `normalize_segments` 归一化 → `factory.py` + `user_config.py` 注册 → `bootstrap.py` / `doctor` 接入。
 - **测试不访问网络**：下载器、云 ASR、浏览器一律 mock；真实链接只用于手动端到端验证。
 - **任务中断**：排队任务直接取消，运行任务通过取消令牌在阶段边界和进度检查点停止；不可中断的模型调用返回后丢弃结果。`cancel_requested` 与终态写库须避免竞态。
+- **音频缓存**：远程来源按平台视频 ID（B站另加分 P）缓存完整 16k WAV；只复用通过格式校验的文件。详情页换模型重转写强制 ASR、独立保存新文字稿；普通新建转写仍字幕优先。
 - **保持简单**：不引入 Redis、消息队列、复杂数据库、登录权限等；SQLite + 线程池足够。确需引入必须先在 `docs/decisions.md` 记录理由。
 - **抖音**：不逆向 `a_bogus` 等签名算法；走 Playwright 浏览器截获（见 `docs/platforms/douyin.md`）。浏览器 UA 必须与实际系统一致（`default_user_agent`），否则详情接口返回空数据。
 - **模型配置**：新配置默认 faster-whisper large-v3-turbo，已有配置不迁移；模型档位只在 `model_catalog.py` 定义。扫描只检查文件，不能把文件存在等同于运行可用。

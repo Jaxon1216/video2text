@@ -22,8 +22,8 @@ flowchart LR
 ## 一次转写的数据流
 
 1. `inputs.parse_source(raw)` 把输入解析为 `SourceRef(kind=bilibili|douyin|video|audio, ...)`。
-2. 远程来源（bilibili / douyin）交给 `factory` 按 `kind` 选出的 Downloader。若 `prefer_subtitles`（默认开）先调用 `fetch_subtitles`：拿到平台字幕就跳过下载和 ASR（`transcript_source=subtitle`）；否则 `download` 得到 `DownloadResult(video_path, title, metadata)`，`video_path` 可以是视频也可以是纯音频文件。
-3. `pipeline._extract_audio` 用 ffmpeg 转成 16kHz 单声道 wav（本地音频文件跳过这一步）。
+2. 远程来源（bilibili / douyin）交给 `factory` 按 `kind` 选出的 Downloader。若 `prefer_subtitles`（默认开）先调用 `fetch_subtitles`：拿到平台字幕就跳过下载和 ASR（`transcript_source=subtitle`）。强制 ASR 或无字幕时，先查按平台视频 ID（B站还按分 P）区分的完整 WAV 缓存；未命中才下载媒体。
+3. `pipeline._extract_audio` 用 ffmpeg 转成 16kHz 单声道 wav（本地音频文件跳过这一步）；完整 WAV 通过格式校验后原子写入缓存。不同任务的临时音频名互不冲突。
 4. `Transcriber.transcribe(audio_path, prompt, progress)` 返回 `{"text", "segments", "language", "model", ...}`，其中 `segments` 已归一化为 `[{start, end, text}]`（秒，见 `segments.py`）。
 5. pipeline 写出 `transcripts/original/<stem>-<时间>.txt`（纯文本）和 `metadata/<stem>-<时间>.json`（来源、下载信息、`transcript_source`、`segments`）。
 6. `library.register_transcript_result` 在 SQLite 里登记 video 和当前转写稿版本。
@@ -34,6 +34,7 @@ flowchart LR
 | 模块 | 职责 |
 | --- | --- |
 | `inputs.py` | 输入识别：本地文件后缀、B站 BV / 链接、抖音分享文本与链接 |
+| `audio_cache.py` | 远程音频缓存：来源匹配、WAV 校验、原子发布、旧文字稿音频导入 |
 | `models.py` | 纯数据类，无业务逻辑；`TranscriptDocument` 是导出和以后 AI 功能的统一输入 |
 | `segments.py` | segment 结构与各引擎输出的归一化 |
 | `formatters.py` | 纯函数：时间戳格式化、按 30 秒合并段落、txt / md / srt 渲染 |
@@ -59,6 +60,7 @@ flowchart LR
   app.db               SQLite 索引
   downloads/           下载的视频/音频
   audio/               ffmpeg 输出的 16k wav
+  audio/cache/         按来源索引的完整 WAV 与 manifest（损坏文件不会命中）
   transcripts/original 原始转写稿
   transcripts/edited   Web 上编辑后另存的版本
   metadata/            每次转写的 metadata json（来源、引擎、下载信息、segments）
@@ -103,6 +105,8 @@ flowchart LR
 文字稿详情用原生 `<dialog>` 提供站内导出确认，浏览器负责焦点约束；组件关闭后恢复原按钮焦点，确认后才访问导出接口。
 
 文字稿列表的原链接复制按钮与详情链接独立，支持悬停、键盘与触屏，反馈复制结果；本地文件不显示该操作。
+
+文字稿详情可选择其他引擎和模型重新识别：`POST /api/videos/{id}/retranscribe` 先核验并导入旧 WAV，再提交 `force_asr` 任务。新稿独立入库，原稿保留；普通新建任务继续字幕优先。
 
 模型选项统一定义在 `model_catalog.py`，CLI 配置向导复用该目录；默认模型解析按引擎隔离，显式模型名或路径优先。
 

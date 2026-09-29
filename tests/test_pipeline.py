@@ -1,11 +1,14 @@
 from pathlib import Path
 from threading import Event
+import wave
+from threading import Barrier
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
 from v2t.config import Settings
 from v2t.downloaders.base import Downloader
-from v2t.models import DownloadResult, SourceRef
+from v2t.models import DownloadResult, SourceRef, SubtitleResult
 from v2t.pipeline import V2TPipeline, _parse_ffmpeg_progress_seconds
 from v2t.progress import ProgressReporter, TaskCancelled
 from v2t.transcribers.base import Transcriber
@@ -174,3 +177,110 @@ def test_cancel_during_ffmpeg_terminates_process_and_removes_partial_audio(tmp_p
         pipeline._extract_audio(tmp_path / "video.mp4", "demo", ProgressReporter("task", cancel_event=cancelled))
     assert terminated
     assert not (settings.audio_dir / "demo.wav").exists()
+
+
+def test_retranscribe_reuses_cached_audio_and_keeps_both_outputs(tmp_path: Path) -> None:
+    settings = Settings.from_workspace(tmp_path)
+    video = tmp_path / "video.mp4"
+    video.write_bytes(b"video")
+    downloads = []
+
+    class CountingDownloader(FakeDownloader):
+        def download(self, source, settings, *, progress=None):
+            downloads.append(source.raw_input)
+            result = super().download(source, settings, progress=progress)
+            result.metadata = {"id": source.bv, "platform": "bilibili", "title": "demo"}
+            return result
+
+    class ValidAudioPipeline(V2TPipeline):
+        def _extract_audio(self, video_path, stem, progress=None):
+            output = self.settings.audio_dir / f"{stem}.wav"
+            output.parent.mkdir(parents=True, exist_ok=True)
+            with wave.open(str(output), "wb") as audio:
+                audio.setnchannels(1)
+                audio.setsampwidth(2)
+                audio.setframerate(16000)
+                audio.writeframes(b"\x00\x00" * 160)
+            return output
+
+    downloader = CountingDownloader(video)
+    pipeline = ValidAudioPipeline(settings=settings, downloaders={"bilibili": downloader},
+                                  transcriber=FakeTranscriber(), prefer_subtitles=False)
+    first = pipeline.transcribe("BV1xx411c7XD")
+    second = pipeline.transcribe("BV1xx411c7XD", force_asr=True)
+    assert len(downloads) == 1
+    assert first.audio_path == second.audio_path
+    assert first.transcript_path != second.transcript_path
+    assert first.transcript_path.exists() and second.transcript_path.exists()
+
+
+def test_corrupt_cached_audio_redownloads_but_new_task_still_prefers_subtitles(tmp_path: Path) -> None:
+    settings = Settings.from_workspace(tmp_path)
+    video = tmp_path / "video.mp4"
+    video.write_bytes(b"video")
+    downloads = []
+
+    class SubtitleDownloader(FakeDownloader):
+        def fetch_subtitles(self, source, settings, *, progress=None):
+            return SubtitleResult(source=source, language="zh", segments=[{"start": 0, "end": 2, "text": "字幕"}])
+
+        def download(self, source, settings, *, progress=None):
+            downloads.append(1)
+            result = super().download(source, settings, progress=progress)
+            result.metadata = {"id": source.bv, "platform": "bilibili"}
+            return result
+
+    class ValidAudioPipeline(V2TPipeline):
+        def _extract_audio(self, video_path, stem, progress=None):
+            output = self.settings.audio_dir / f"{stem}.wav"
+            output.parent.mkdir(parents=True, exist_ok=True)
+            with wave.open(str(output), "wb") as audio:
+                audio.setnchannels(1)
+                audio.setsampwidth(2)
+                audio.setframerate(16000)
+                audio.writeframes(b"\x00\x00" * 160)
+            return output
+
+    pipeline = ValidAudioPipeline(settings=settings, downloaders={"bilibili": SubtitleDownloader(video)},
+                                  transcriber=FakeTranscriber())
+    first = pipeline.transcribe("BV1xx411c7XD", force_asr=True)
+    first.audio_path.write_bytes(b"broken")
+    second = pipeline.transcribe("BV1xx411c7XD", force_asr=True)
+    assert len(downloads) == 2
+    assert second.engine == "fake-whisper"
+    third = pipeline.transcribe("BV1xx411c7XD")
+    assert third.engine == "subtitle"
+    assert len(downloads) == 2
+
+
+def test_same_title_concurrent_sources_keep_distinct_audio(tmp_path: Path) -> None:
+    settings = Settings.from_workspace(tmp_path)
+    barrier = Barrier(2)
+
+    class SameTitleDownloader(FakeDownloader):
+        def download(self, source, settings, *, progress=None):
+            path = tmp_path / f"{source.bv}.mp4"
+            path.write_bytes(b"video")
+            return DownloadResult(source=source, video_path=path, title="same-title",
+                                  metadata={"id": source.bv, "platform": "bilibili", "title": "same-title"})
+
+    class ConcurrentPipeline(V2TPipeline):
+        def _extract_audio(self, video_path, stem, progress=None):
+            path = settings.audio_dir / f"{stem}.wav"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            sample = b"\x01\x00" if "xx" in video_path.name else b"\x02\x00"
+            with wave.open(str(path), "wb") as audio:
+                audio.setnchannels(1)
+                audio.setsampwidth(2)
+                audio.setframerate(16000)
+                audio.writeframes(sample * 160)
+            barrier.wait(timeout=5)
+            return path
+
+    pipeline = ConcurrentPipeline(settings=settings, downloaders={"bilibili": SameTitleDownloader(tmp_path)},
+                                  transcriber=FakeTranscriber(), prefer_subtitles=False)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(pipeline.transcribe, ["BV1xx411c7XD", "BV1yy411c7XD"]))
+    assert results[0].audio_path != results[1].audio_path
+    with wave.open(str(results[0].audio_path), "rb") as first, wave.open(str(results[1].audio_path), "rb") as second:
+        assert first.readframes(1) != second.readframes(1)

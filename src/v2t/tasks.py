@@ -49,6 +49,7 @@ class TaskService:
         provider: str,
         model: str,
         prompt: str = "",
+        force_asr: bool = False,
         listener: ProgressCallback | None = None,
     ) -> TaskRecord:
         task = self.database.create_task(
@@ -62,7 +63,7 @@ class TaskService:
         reporter = ProgressReporter(task.id, callback=self._handle_progress)
         reporter.queued("queued")
         cancel_event = Event()
-        future = self.executor.submit(self._run_transcription, task.id, source, provider, model, prompt, cancel_event)
+        future = self.executor.submit(self._run_transcription, task.id, source, provider, model, prompt, cancel_event, force_asr)
         with self._lock:
             self._futures[task.id] = future
             self._cancel_events[task.id] = cancel_event
@@ -114,13 +115,15 @@ class TaskService:
     def list_tasks(self) -> list[TaskRecord]:
         return self.database.list_tasks()
 
-    def _run_transcription(self, task_id: str, source: str, provider: str, model: str, prompt: str, cancel_event: Event) -> None:
+    def _run_transcription(self, task_id: str, source: str, provider: str, model: str, prompt: str,
+                           cancel_event: Event, force_asr: bool) -> None:
         reporter = ProgressReporter(task_id, callback=self._handle_progress, cancel_event=cancel_event)
         result = None
         try:
             reporter.running("preparing", message="preparing")
             pipeline = self.pipeline_factory(provider, model)
-            result = pipeline.transcribe(source, prompt=prompt or None, progress=reporter)
+            options = {"force_asr": True} if force_asr else {}
+            result = pipeline.transcribe(source, prompt=prompt or None, progress=reporter, **options)
             reporter.running("indexing", message="indexing", stage_progress=0.5)
             with self._lock:
                 reporter.check_cancelled()
