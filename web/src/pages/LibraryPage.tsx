@@ -1,12 +1,22 @@
 import { useEffect, useState } from "react";
 import { listVideos, type VideoItem } from "../api";
-import { PLATFORM_LABELS, formatDate } from "../format";
+import { PLATFORM_LABELS, formatDate, copyText } from "../format";
 import { Link } from "../router";
 
 export function LibraryPage() {
   const [videos, setVideos] = useState<VideoItem[] | null>(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 1800);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+  const copyLink = async (url: string) => {
+    try { await copyText(url); setToast("已复制原视频链接"); }
+    catch (err) { setToast((err as Error).message); }
+  };
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     let cancelled = false;
@@ -45,11 +55,15 @@ export function LibraryPage() {
                     <span>{video.engine}</span>
                   </span>
                 </Link>
+                {video.source_url && ["bilibili", "douyin"].includes(video.source_kind) && (
+                  <button className="chip source-copy" aria-label={`复制${video.title}的原视频链接`} onClick={() => copyLink(video.source_url!)}>复制链接</button>
+                )}
               </li>
             ))}
           </ol>
         )}
       </section>
+      <div className={`toast ${toast ? "is-visible" : ""}`} role="status" aria-live="polite">{toast}</div>
     </section>
   );
 }

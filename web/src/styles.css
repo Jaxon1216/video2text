@@ -824,3 +824,9 @@ a.stamp:hover {
 .export-dialog h2 { margin: 0 0 1rem; }
 .export-dialog .primary { text-decoration: none; }
 .export-name { overflow-wrap: anywhere; font-weight: 600; }
+
+.library li { position: relative; }
+.library-item { padding-right: 6rem; }
+.source-copy { position: absolute; top: 1.2rem; right: 0; opacity: 0; }
+.library li:hover .source-copy, .library li:focus-within .source-copy { opacity: 1; }
+@media (hover: none) { .source-copy { opacity: 1; } }

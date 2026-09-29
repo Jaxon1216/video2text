@@ -167,3 +167,31 @@ def test_srt_unavailable_without_timestamps(page):
     page.goto(f"{URL}/videos/1")
     expect(page.get_by_text("SRT", exact=True)).to_have_attribute("title", "没有时间戳，无法导出字幕")
     expect(page.get_by_role("button", name="SRT", exact=True)).to_have_count(0)
+
+
+def test_copy_link_does_not_navigate_and_local_has_no_button(page):
+    from playwright.sync_api import expect
+
+    page.add_init_script("Object.defineProperty(navigator, 'clipboard', {value: {writeText: async text => {window.copied = text}}})")
+    page.route("**/api/videos", lambda route: route.fulfill(json={"items": [VIDEO, {**VIDEO, "id": 2, "title": "本地笔记", "source_kind": "audio", "source_url": None}]}))
+    page.goto(f"{URL}/videos")
+    button = page.get_by_role("button", name="复制线程池笔记的原视频链接")
+    expect(button).to_have_count(1)
+    button.focus()
+    page.keyboard.press("Enter")
+    expect(page).to_have_url(f"{URL}/videos")
+    expect(page.get_by_role("status")).to_have_text("已复制原视频链接")
+    assert page.evaluate("window.copied") == VIDEO["source_url"]
+    expect(page.get_by_role("button", name="复制本地笔记的原视频链接")).to_have_count(0)
+
+
+def test_copy_link_failure_is_visible(page):
+    from playwright.sync_api import expect
+
+    page.add_init_script("Object.defineProperty(navigator, 'clipboard', {value: {writeText: async () => {throw Error('denied')}}}); document.execCommand = () => false")
+    page.goto(f"{URL}/videos")
+    button = page.get_by_role("button", name="复制线程池笔记的原视频链接")
+    expect(button).to_have_count(1)
+    button.focus()
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("status")).to_contain_text("浏览器不允许复制")
