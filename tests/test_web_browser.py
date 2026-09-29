@@ -24,12 +24,13 @@ DOCUMENT = dict(video_id=1, title=VIDEO["title"], platform="bilibili", url=VIDEO
 
 
 @pytest.fixture
-def page():
+def page(request):
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(channel="chrome", headless=True)
-        page = browser.new_page()
+        browser = p.chromium.launch(channel=os.getenv("V2T_BROWSER_CHANNEL", "chrome"), headless=True, timeout=20000)
+        page = browser.new_page(**getattr(request, "param", {}))
+        page.set_default_timeout(10000)
 
         def api(route):
             path = route.request.url.split("/api/")[1].split("?")[0]
@@ -250,3 +251,16 @@ def test_cache_labels_refresh_and_missing_sensevoice(page):
     page.get_by_role('combobox', name='识别引擎').select_option('sensevoice')
     expect(page.get_by_role('button', name='转成文字')).to_be_disabled()
     expect(page.get_by_text('请先配置 SenseVoice 本地模型目录', exact=False)).to_be_visible()
+
+
+@pytest.mark.parametrize('page', [{'viewport': {'width': 390, 'height': 844}, 'has_touch': True}], indirect=True)
+def test_mobile_library_keeps_metadata_readable_and_copy_visible(page):
+    from playwright.sync_api import expect
+
+    page.emulate_media(reduced_motion='reduce')
+    page.goto(f'{URL}/videos')
+    expect(page.get_by_role('link', name='线程池笔记', exact=False)).to_be_visible()
+    expect(page.get_by_role('button', name='复制线程池笔记的原视频链接')).to_have_css('opacity', '1')
+    tag = page.locator('.library-meta .tag')
+    assert tag.bounding_box()['height'] < 30
+    assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')

@@ -835,3 +835,11 @@ a.stamp:hover {
 .model-status p { margin: 0.4rem 0 0; }
 .model-warning { margin-top: 1rem; }
 .options select { min-width: 0; max-width: 100%; }
+
+.library-title { min-width: 0; overflow-wrap: anywhere; }
+.library-meta .tag { white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 720px) {
+  .library-item { padding-right: 0; }
+  .library-title { padding-right: 6rem; }
+  .library-meta { flex-wrap: wrap; gap: 0.4rem 0.8rem; }
+}
