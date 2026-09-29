@@ -220,7 +220,6 @@ def run_bootstrap(*, settings: Settings, interactive: bool = True) -> AppConfig:
         elif provider == "volcengine":
             _configure_volcengine(config, lang)
 
-    previous_provider = config.default_provider
     # ── 5. Pick default provider ─────────────────────────────
     console.print()
     console.rule(f"[bold]{tr(lang, 'bootstrap_step_default')}[/bold]")
@@ -241,7 +240,7 @@ def run_bootstrap(*, settings: Settings, interactive: bool = True) -> AppConfig:
     if config.default_provider == "faster-whisper" and selected_faster_whisper_model:
         config.default_model = selected_faster_whisper_model
 
-    if config.default_provider in ("sensevoice", "volcengine") and config.default_provider != previous_provider:
+    if config.default_provider in ("sensevoice", "volcengine"):
         config.default_model = provider_default_model(config, config.default_provider)
 
     # ── Save and show next steps ─────────────────────────────

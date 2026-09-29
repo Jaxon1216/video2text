@@ -157,3 +157,23 @@ def test_run_bootstrap_updates_default_model_when_whisper_becomes_default(
 
     assert updated.default_provider == "whisper"
     assert updated.default_model == "medium"
+
+
+def test_reconfiguring_same_cloud_or_sensevoice_updates_active_model(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from v2t.model_catalog import resolve_model
+    for provider in ('sensevoice', 'volcengine'):
+        settings = Settings.from_workspace(tmp_path / provider)
+        existing = AppConfig(default_provider=provider, default_model='old-model', enabled_providers=[provider])
+        existing.save(settings)
+        checkbox_values = iter([[provider], []])
+        monkeypatch.setattr(bootstrap_module.inquirer, 'confirm', lambda **kwargs: SimpleNamespace(execute=lambda: True))
+        monkeypatch.setattr(bootstrap_module.inquirer, 'select', lambda **kwargs: SimpleNamespace(execute=lambda: 'zh-CN'))
+        monkeypatch.setattr(bootstrap_module.inquirer, 'checkbox', lambda **kwargs: SimpleNamespace(execute=lambda: next(checkbox_values)))
+        monkeypatch.setattr(bootstrap_module, '_configure_sensevoice', lambda config, lang: setattr(config.sensevoice, 'model_dir', '/models/new'))
+        monkeypatch.setattr(bootstrap_module, '_configure_volcengine', lambda config, lang: setattr(config.volcengine, 'model_name', 'new-cloud-model'))
+        monkeypatch.setattr(bootstrap_module, '_show_next_steps', lambda **kwargs: None)
+        updated = run_bootstrap(settings=settings, interactive=True)
+        expected = '/models/new' if provider == 'sensevoice' else 'new-cloud-model'
+        assert resolve_model(updated, provider) == expected
+        assert AppConfig.load(settings).default_model == expected

@@ -120,3 +120,5 @@ flowchart LR
 SenseVoice 文件规则参考 [FunASR 加载器](https://github.com/modelscope/FunASR/blob/main/runtime/python/onnxruntime/funasr_onnx/sensevoice_bin.py)，与当前包装器的非量化默认参数一致。
 
 任务进入终态时，先原子写入结果 ID / 错误信息与完成时间，再通知进度监听者，保证客户端停止轮询时已经取得完整终态数据。
+
+交互式 bootstrap 显式重配默认引擎后同步其模型值，包括保持同一 SenseVoice / 火山引擎但修改目录或云模型的情况；普通加载配置仍不迁移旧值。
