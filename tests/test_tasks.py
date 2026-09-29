@@ -74,3 +74,33 @@ def test_task_stage_logs_do_not_repeat_for_percentage_updates(tmp_path, caplog):
     assert "transcribing" in caplog.records[0].message
     assert "recognition failed" in caplog.records[1].message
     assert caplog.records[1].levelno == logging.ERROR
+
+
+def test_terminal_progress_already_has_result_or_error(tmp_path):
+    for failure in (False, True):
+        settings = Settings.from_workspace(tmp_path / str(failure))
+        database = AppDatabase(settings)
+        class Pipeline(FakePipeline):
+            def transcribe(self, *args, **kwargs):
+                if failure:
+                    raise RuntimeError('recognition failed')
+                return super().transcribe(*args, **kwargs)
+        service = TaskService(database=database, library=WorkspaceLibrary(settings, database),
+                              pipeline_factory=lambda provider, model: Pipeline(settings, provider, model))
+        observed = []
+        def listener(snapshot):
+            if snapshot.status in ('completed', 'failed'):
+                observed.append(database.get_task(snapshot.task_id))
+        task = service.submit_transcription(source='BV1xx411c7XD', provider='whisper', model='small', listener=listener)
+        try:
+            service.wait_for_task(task.id)
+        except RuntimeError:
+            assert failure
+        finally:
+            service.executor.shutdown()
+        assert len(observed) == 1
+        assert observed[0].finished_at is not None
+        if failure:
+            assert observed[0].error_message == 'recognition failed'
+        else:
+            assert observed[0].video_id is not None

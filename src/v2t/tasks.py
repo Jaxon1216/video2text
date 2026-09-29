@@ -92,11 +92,11 @@ class TaskService:
             result = pipeline.transcribe(source, prompt=prompt or None, progress=reporter)
             reporter.running("indexing", message="indexing", stage_progress=0.5)
             video_id = self.library.register_transcript_result(result)
-            reporter.completed("completed")
             self.database.complete_task(task_id, video_id=video_id, message="completed")
+            reporter.completed("completed")
         except Exception as exc:
-            reporter.failed(str(exc))
             self.database.fail_task(task_id, error_message=str(exc))
+            reporter.failed(str(exc))
             raise
 
     def _handle_progress(self, snapshot) -> None:  # type: ignore[no-untyped-def]

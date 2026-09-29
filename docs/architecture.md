@@ -118,3 +118,5 @@ flowchart LR
 - 前端标记缺失/不完整/未知，缺失的可下载模型仍可选并提示首次下载。SenseVoice 缺少文件时禁用提交，提示配置目录；刷新保留当前选择。
 
 SenseVoice 文件规则参考 [FunASR 加载器](https://github.com/modelscope/FunASR/blob/main/runtime/python/onnxruntime/funasr_onnx/sensevoice_bin.py)，与当前包装器的非量化默认参数一致。
+
+任务进入终态时，先原子写入结果 ID / 错误信息与完成时间，再通知进度监听者，保证客户端停止轮询时已经取得完整终态数据。
