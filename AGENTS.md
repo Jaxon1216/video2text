@@ -40,6 +40,7 @@ src/v2t/
   cli.py            CLI 入口（transcribe/batch/web/server/doctor/bootstrap/language）
   inputs.py         输入解析：本地文件 / B站 / 抖音分享文本 -> SourceRef
   models.py         数据类：SourceRef、DownloadResult、TranscriptResult、TranscriptDocument、TaskRecord...
+  model_catalog.py  CLI / Web 共用的模型目录与各引擎默认值解析
   factory.py        按 provider 组装 Transcriber（按配置缓存复用），按 source.kind 选择 Downloader
   pipeline.py       核心流程：下载 -> ffmpeg 抽 16k wav -> 转写 -> 写 txt + metadata json（含 segments）
   segments.py       segment 结构 {start, end, text}（秒）与归一化

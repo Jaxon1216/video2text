@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from v2t.config import Settings
+from v2t.model_catalog import FASTER_WHISPER_MODELS, WHISPER_MODELS, model_description_key
 from v2t.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, tr
 from v2t.user_config import ALL_FEATURES, ALL_PROVIDERS, AppConfig
 
@@ -267,19 +268,15 @@ def ensure_bootstrap(*, settings: Settings, allow_prompt: bool = True) -> AppCon
 # ── Provider configuration flows ─────────────────────────────
 
 
-FASTER_WHISPER_MODELS = ("tiny", "base", "small", "medium", "large-v3-turbo", "large-v3")
+
 
 
 def _configure_faster_whisper(config: AppConfig, lang: str) -> str:
     return inquirer.select(
         message=tr(lang, "bootstrap_faster_whisper_model_prompt"),
         choices=[
-            {"name": "tiny           — " + tr(lang, "whisper_model_tiny"), "value": "tiny"},
-            {"name": "base           — " + tr(lang, "whisper_model_base"), "value": "base"},
-            {"name": "small          — " + tr(lang, "whisper_model_small"), "value": "small"},
-            {"name": "medium         — " + tr(lang, "whisper_model_medium"), "value": "medium"},
-            {"name": "large-v3-turbo — " + tr(lang, "whisper_model_large_v3_turbo"), "value": "large-v3-turbo"},
-            {"name": "large-v3       — " + tr(lang, "whisper_model_large"), "value": "large-v3"},
+            {"name": f"{model:<14} — " + tr(lang, model_description_key(model)), "value": model}
+            for model in FASTER_WHISPER_MODELS
         ],
         default=config.default_model if config.default_model in FASTER_WHISPER_MODELS else "small",
     ).execute()
@@ -289,13 +286,10 @@ def _configure_whisper(config: AppConfig, lang: str) -> str:
     whisper_model = inquirer.select(
         message=tr(lang, "bootstrap_whisper_model_prompt"),
         choices=[
-            {"name": "tiny    — " + tr(lang, "whisper_model_tiny"), "value": "tiny"},
-            {"name": "base    — " + tr(lang, "whisper_model_base"), "value": "base"},
-            {"name": "small   — " + tr(lang, "whisper_model_small"), "value": "small"},
-            {"name": "medium  — " + tr(lang, "whisper_model_medium"), "value": "medium"},
-            {"name": "large   — " + tr(lang, "whisper_model_large"), "value": "large"},
+            {"name": f"{model:<8} — " + tr(lang, model_description_key(model)), "value": model}
+            for model in WHISPER_MODELS
         ],
-        default=config.default_model if config.default_model in ("tiny", "base", "small", "medium", "large") else "small",
+        default=config.default_model if config.default_model in WHISPER_MODELS else "small",
     ).execute()
     return whisper_model
 
