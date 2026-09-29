@@ -14,15 +14,15 @@ docker compose up -d --build
 - 基础镜像 `python:3.12-slim`（Debian 13），前端构建阶段也用它（apt 装 Node 20），整个构建只依赖这一个基础镜像。
 - Python 依赖：`faster-whisper`、`web`、`douyin`、`volcengine` 这几个 extras。**不含 openai-whisper**（torch 太大）。
 - ffmpeg、Playwright Chromium 及其系统库（抖音解析用）。
-- 解压后约 3.5GB；第一次转写还会下载 faster-whisper 模型（small 约 470MB，缓存在 `data/models`）。
+- 解压后约 3.5GB；第一次使用未缓存的模型进行语音识别时会下载模型，缓存在 `data/models`；新配置默认 large-v3-turbo。
 
 ## 配置（`.env` 或 compose 的 environment）
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `HF_ENDPOINT` | `https://hf-mirror.com` | 模型下载镜像；海外网络可设为 `https://huggingface.co` |
-| `V2T_DEFAULT_PROVIDER` | `faster-whisper` | 默认引擎 |
-| `V2T_DEFAULT_MODEL` | `small` | 默认模型，可改 `medium` / `large-v3-turbo` |
+| `V2T_DEFAULT_PROVIDER` | 空 | 不覆盖已保存的引擎；新配置使用 faster-whisper |
+| `V2T_DEFAULT_MODEL` | 空 | 不覆盖已保存的模型；新配置使用 large-v3-turbo，可显式指定其他档位 |
 | `V2T_VOLCENGINE_API_KEY` | 空 | 火山引擎 API Key，填了之后 Web 里可以选火山引擎 |
 | `V2T_PREFER_SUBTITLES` | `1` | 是否优先用 B站字幕 |
 

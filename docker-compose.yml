@@ -18,7 +18,7 @@ services:
     shm_size: "1gb"
     environment:
       HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
-      V2T_DEFAULT_PROVIDER: ${V2T_DEFAULT_PROVIDER:-faster-whisper}
-      V2T_DEFAULT_MODEL: ${V2T_DEFAULT_MODEL:-small}
+      V2T_DEFAULT_PROVIDER: ${V2T_DEFAULT_PROVIDER:-}
+      V2T_DEFAULT_MODEL: ${V2T_DEFAULT_MODEL:-}
       V2T_VOLCENGINE_API_KEY: ${V2T_VOLCENGINE_API_KEY:-}
     restart: unless-stopped
