@@ -9,7 +9,7 @@
 
 ```bash
 uv sync --extra faster-whisper --extra web --extra douyin                 # 常用组合
-uv sync --extra faster-whisper --extra web --extra douyin --extra volcengine --extra whisper   # 全部引擎
+uv sync --extra faster-whisper --extra web --extra douyin --extra volcengine --extra whisper --extra qwen3-asr   # 全部引擎
 ```
 
 注意：`uv sync` 会卸载没列出的 extras，每次都要带上完整组合。`video2text bootstrap` 会按配置自动拼好命令（`douyin` 始终包含）。
@@ -39,6 +39,7 @@ npm run build    # 产物在 web/dist，由 FastAPI 托管
 - 工作区默认 `./.v2t`（`V2T_HOME` 或 `--workspace` 覆盖），里面的 `config.json` 保存默认引擎和云 ASR key，已被 `.gitignore` 忽略。
 - 首次运行会进入配置向导；非交互环境（如后台服务）会写入默认配置（faster-whisper large-v3-turbo，中文）。
 - faster-whisper 的语言、设备、beam_size、VAD 在 `config.json` 的 `faster_whisper` 段调整；模型缓存在 HuggingFace 默认目录（`~/.cache/huggingface`），国内需 `HF_ENDPOINT=https://hf-mirror.com`。
+- Qwen3-ASR 使用官方 0.6B 模型，优先 Apple MPS，不支持时回退 CPU。模型首次使用下载到 HuggingFace 缓存；旧 pyenv 缺 `_lzma` 也能工作，因为转写器自行解码音频再传样本数组。
 - 平台相关的环境变量见 `docs/platforms/`。
 
 ## 约定

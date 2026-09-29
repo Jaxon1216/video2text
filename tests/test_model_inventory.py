@@ -83,7 +83,7 @@ def test_scan_never_imports_engines_or_uses_network_and_refreshes(tmp_path, monk
     config.faster_whisper.download_root = str(tmp_path)
     original_import = builtins.__import__
     def guarded_import(name, *args, **kwargs):
-        assert name.split('.')[0] not in {'faster_whisper', 'whisper', 'torch', 'ctranslate2', 'funasr_onnx'}
+        assert name.split('.')[0] not in {'faster_whisper', 'whisper', 'torch', 'ctranslate2', 'funasr_onnx', 'qwen_asr'}
         return original_import(name, *args, **kwargs)
     monkeypatch.setattr(builtins, '__import__', guarded_import)
     monkeypatch.setattr(socket, 'create_connection', lambda *args, **kwargs: pytest.fail('scan accessed network'))
@@ -106,3 +106,22 @@ def test_unreadable_cache_reports_unknown(tmp_path, monkeypatch):
         return original_stat(path, *args, **kwargs)
     monkeypatch.setattr(Path, 'stat', stat)
     assert inspect_model(config, 'faster-whisper', 'small')['cache_status'] == 'unknown'
+
+
+def test_qwen_cache_scan_only_checks_current_snapshot_files(tmp_path, monkeypatch):
+    monkeypatch.setenv('HF_HUB_CACHE', str(tmp_path))
+    config = AppConfig()
+    model = 'Qwen/Qwen3-ASR-0.6B'
+    assert inspect_model(config, 'qwen3-asr', model)['cache_status'] == 'missing'
+    repo = tmp_path / 'models--Qwen--Qwen3-ASR-0.6B'
+    snapshot = repo / 'snapshots' / ('a' * 40)
+    snapshot.mkdir(parents=True)
+    for name in ('config.json', 'model.safetensors', 'preprocessor_config.json',
+                 'tokenizer_config.json', 'vocab.json', 'merges.txt'):
+        (snapshot / name).write_text('data')
+    assert inspect_model(config, 'qwen3-asr', model)['cache_status'] == 'incomplete'
+    (repo / 'refs').mkdir()
+    (repo / 'refs/main').write_text('a' * 40)
+    assert inspect_model(config, 'qwen3-asr', model)['cache_status'] == 'found'
+    (snapshot / 'model.safetensors').write_text('')
+    assert inspect_model(config, 'qwen3-asr', model)['cache_status'] == 'incomplete'

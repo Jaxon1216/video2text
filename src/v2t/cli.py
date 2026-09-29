@@ -211,6 +211,10 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         else:
             rows.append((tr(selected_language, "doctor_whisper"), tr(selected_language, "status_ok")))
 
+        from importlib.util import find_spec
+        rows.append((tr(selected_language, "doctor_qwen3_asr"), tr(selected_language, "status_ok")
+                     if find_spec("qwen_asr") else tr(selected_language, "status_missing")))
+
         try:
             import funasr_onnx  # noqa: F401
         except ImportError:

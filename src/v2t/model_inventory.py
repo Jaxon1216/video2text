@@ -11,13 +11,14 @@ from pathlib import Path
 from threading import Lock
 from urllib.parse import urlsplit
 
-from v2t.model_catalog import FASTER_WHISPER_MODELS, WHISPER_MODELS, model_choices, resolve_model
+from v2t.model_catalog import FASTER_WHISPER_MODELS, WHISPER_MODELS, QWEN3_ASR_MODEL, model_choices, resolve_model
 from v2t.user_config import ALL_PROVIDERS, AppConfig
 
 # Used only when the optional engine is absent. Installed engine aliases take precedence.
 _FASTER_REPOS = {name: f"Systran/faster-whisper-{name}" for name in FASTER_WHISPER_MODELS}
 _FASTER_REPOS["large-v3-turbo"] = "mobiuslabsgmbh/faster-whisper-large-v3-turbo"
-_MODULES = {"faster-whisper": "faster_whisper", "whisper": "whisper", "sensevoice": "funasr_onnx", "volcengine": "requests"}
+_MODULES = {"faster-whisper": "faster_whisper", "whisper": "whisper", "qwen3-asr": "qwen_asr",
+            "sensevoice": "funasr_onnx", "volcengine": "requests"}
 
 
 def huggingface_cache_root() -> Path:
@@ -77,6 +78,21 @@ def inspect_model(config: AppConfig, provider: str, model: str) -> dict:
                 return _result("missing", "请先配置 SenseVoice 本地模型目录")
             # Matches FunASR SenseVoiceSmall's non-quantized ONNX loader.
             return _directory_status(Path(model).expanduser(), ("model.onnx", "config.yaml", "am.mvn", "chn_jpn_yue_eng_ko_spectok.bpe.model"))
+        if provider == "qwen3-asr":
+            if model != QWEN3_ASR_MODEL:
+                return _result("unknown", "首版仅支持 Qwen3-ASR 0.6B")
+            repository = huggingface_cache_root() / "models--Qwen--Qwen3-ASR-0.6B"
+            if not repository.exists():
+                return _result("missing", "未下载，首次识别需要下载模型", True)
+            ref = repository / "refs" / "main"
+            if not _nonempty_file(ref):
+                return _result("incomplete", "缓存缺少 main 版本引用", True)
+            revision = ref.read_text(encoding="utf-8").strip()
+            if not re.fullmatch(r"[0-9a-f]{40}", revision):
+                return _result("incomplete", "缓存版本引用无效", True)
+            snapshot = repository / "snapshots" / revision
+            return _directory_status(snapshot, ("config.json", "model.safetensors", "preprocessor_config.json",
+                                                "tokenizer_config.json", "vocab.json", "merges.txt"), downloadable=True)
         if provider == "whisper":
             aliases = _engine_aliases("openai-whisper", "whisper/__init__.py", {name: f"{name if name != 'large' else 'large-v3'}.pt" for name in WHISPER_MODELS})
             if model in aliases:

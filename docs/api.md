@@ -81,7 +81,7 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
 }
 ```
 
-`provider`、`model` 均可省略或为 null。省略引擎使用运行配置；省略模型时，同引擎使用配置默认值，换引擎则使用其独立默认值（Whisper small、SenseVoice 配置目录、火山配置模型、faster-whisper large-v3-turbo）。显式模型名/路径优先且保留自定义能力，未知引擎返回 400。批量接口使用同一规则。
+`provider`、`model` 均可省略或为 null。省略引擎使用运行配置；省略模型时，同引擎使用配置默认值，换引擎则使用其独立默认值（Whisper small、SenseVoice 配置目录、火山配置模型、faster-whisper large-v3-turbo、Qwen3-ASR 0.6B）。除 Qwen3-ASR 首版仅允许 `Qwen/Qwen3-ASR-0.6B` 外，显式模型名/路径优先且保留自定义能力。未知引擎或其他 Qwen 模型返回 400。批量接口使用同一规则。
 
 提交前会先校验输入能否识别（B站 / 抖音 / 本地文件），不能识别时返回 400：`{"detail": "无法识别的输入：..."}`。
 
@@ -352,6 +352,8 @@ Web 在用户确认站内弹窗后才请求导出；API 本身仍直接返回附
 | `plain` | 纯文本 |
 | `md` | 标题 + 平台/链接/作者/时长/引擎 + 带时间戳的文字稿 |
 | `srt` | 字幕文件，使用原始 segment；没有时间戳时返回 400 |
+
+Qwen3-ASR 0.6B 首版返回纯文本和空 `segments`；文档的 `has_timestamps` 为 `false`，Copy for AI 使用纯文本，SRT 返回 400。
 
 不支持的格式返回 400，视频不存在返回 404。
 

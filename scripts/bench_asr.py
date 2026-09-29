@@ -34,7 +34,7 @@ from v2t.segments import join_text, parse_srt  # noqa: E402
 from v2t.user_config import AppConfig  # noqa: E402
 
 MEDIA_SUFFIXES = (".wav", ".m4a", ".mp3", ".flac", ".aac", ".ogg", ".mp4", ".mkv", ".mov", ".webm")
-LOCAL_PROVIDERS = {"faster-whisper", "whisper", "sensevoice"}
+LOCAL_PROVIDERS = {"faster-whisper", "whisper", "qwen3-asr", "sensevoice"}
 
 
 @dataclass

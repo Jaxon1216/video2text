@@ -8,7 +8,7 @@ from v2t.config import Settings
 from v2t.model_catalog import DEFAULT_FASTER_WHISPER_MODEL, resolve_model
 from v2t.i18n import DEFAULT_LANGUAGE, normalize_language
 
-ALL_PROVIDERS = ("faster-whisper", "whisper", "sensevoice", "volcengine")
+ALL_PROVIDERS = ("faster-whisper", "whisper", "qwen3-asr", "sensevoice", "volcengine")
 DEFAULT_PROVIDER = "faster-whisper"
 ALL_FEATURES = ("web", "server")
 

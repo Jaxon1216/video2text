@@ -36,13 +36,15 @@ def page(request):
             path = route.request.url.split("/api/")[1].split("?")[0]
             responses = {
                 "config": dict(default_provider="faster-whisper", default_model="small",
-                               providers=["faster-whisper", "whisper", "sensevoice", "volcengine"],
+                               providers=["faster-whisper", "whisper", "qwen3-asr", "sensevoice", "volcengine"],
                                enabled_providers=["faster-whisper"]),
                 "models": {"items": [
                     {"provider": "faster-whisper", "default_model": "small", "enabled": True,
                      "models": [{"id": value, "label": value} for value in ["large-v3-turbo", "small"]]},
                     {"provider": "whisper", "default_model": "small", "enabled": False,
                      "models": [{"id": "small", "label": "small"}]},
+                    {"provider": "qwen3-asr", "default_model": "Qwen/Qwen3-ASR-0.6B", "enabled": False,
+                     "models": [{"id": "Qwen/Qwen3-ASR-0.6B", "label": "Qwen3-ASR 0.6B"}]},
                     {"provider": "sensevoice", "default_model": "", "enabled": False, "models": []},
                     {"provider": "volcengine", "default_model": "bigmodel", "enabled": False,
                      "models": [{"id": "bigmodel", "label": "bigmodel"}]},
@@ -303,3 +305,18 @@ def test_retranscribe_from_video_detail_selects_model_and_opens_new_task(page):
     page.get_by_role("button", name="开始重转写").click()
     expect(page).to_have_url(f"{URL}/tasks/new-task")
     assert submitted == [{"provider": "faster-whisper", "model": "large-v3-turbo", "prompt": "线程池"}]
+
+
+def test_qwen_model_can_be_selected_for_retranscription(page):
+    from playwright.sync_api import expect
+
+    submitted = []
+    page.route("**/api/videos/1/retranscribe", lambda route: (submitted.append(route.request.post_data_json),
+                                                              route.fulfill(json={"task_id": "qwen-task", "status": "queued"})))
+    page.goto(f"{URL}/videos/1")
+    page.get_by_role("button", name="换模型重转写").click()
+    page.get_by_role("combobox", name="识别引擎").select_option("qwen3-asr")
+    expect(page.get_by_role("combobox", name="模型")).to_have_value("Qwen/Qwen3-ASR-0.6B")
+    page.get_by_role("button", name="开始重转写").click()
+    expect(page).to_have_url(f"{URL}/tasks/qwen-task")
+    assert submitted[0]["model"] == "Qwen/Qwen3-ASR-0.6B"

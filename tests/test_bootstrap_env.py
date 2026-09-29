@@ -27,6 +27,24 @@ def test_collect_required_extras_deduplicates() -> None:
     ) == ["sensevoice", "server", "douyin"]
 
 
+def test_qwen_provider_selects_optional_dependency() -> None:
+    assert collect_required_extras(providers=["qwen3-asr"], features=["web"]) == ["qwen3-asr", "web", "douyin"]
+
+
+def test_bootstrap_can_select_qwen_as_default(tmp_path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    settings = Settings.from_workspace(tmp_path / ".v2t")
+    monkeypatch.setattr(bootstrap_module.inquirer, "select", lambda **kwargs: SimpleNamespace(execute=lambda: "zh-CN"))
+    checkbox_values = iter([["qwen3-asr"], []])
+    monkeypatch.setattr(bootstrap_module.inquirer, "checkbox",
+                        lambda **kwargs: SimpleNamespace(execute=lambda: next(checkbox_values)))
+    monkeypatch.setattr(bootstrap_module, "_show_next_steps", lambda **kwargs: None)
+    updated = run_bootstrap(settings=settings, interactive=True)
+    assert updated.default_provider == "qwen3-asr"
+    assert updated.default_model == "Qwen/Qwen3-ASR-0.6B"
+
+
 def test_build_uv_sync_command_is_stable() -> None:
     command = build_uv_sync_command(
         workspace=Path("D:/repo"),

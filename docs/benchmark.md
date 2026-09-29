@@ -32,12 +32,13 @@ uv run python scripts/bench_asr.py bench/ \
   --engine faster-whisper:small \
   --engine faster-whisper:large-v3-turbo \
   --engine whisper:small \
+  --engine qwen3-asr \
   --engine volcengine \
   --prompt-variants \
   --price volcengine=<元/小时>
 ```
 
-- `--engine provider[:model]` 可重复；可用 provider：`faster-whisper`、`whisper`、`sensevoice`、`volcengine`。
+- `--engine provider[:model]` 可重复；可用 provider：`faster-whisper`、`whisper`、`qwen3-asr`（仅 0.6B）、`sensevoice`、`volcengine`。
 - 云引擎的 API Key 从工作区 `config.json` 读取（`video2text bootstrap` 配置，或 `--workspace` 指定别的工作区）。
 - `--prompt-variants`：每个引擎再跑一遍“把术语作为提示词”的版本。
 - `--price`：云服务每小时音频的单价，用于估算成本；以官方当时的价格为准。本地引擎成本记为 0。
@@ -64,3 +65,7 @@ CER 和术语召回要一起看：提示词常常把术语改对，同时也可�
 | 术语提示词 | 6.5% | 5/5 | 0.45 |
 
 样本太少，不能作为结论；正式对比请按上面的步骤准备 3~5 段样本。
+
+## Qwen3-ASR 0.6B 本机可用性记录（2026-09-30）
+
+Mac M1、16 GB 内存，官方 `qwen-asr==0.0.6`，Apple MPS，使用已有中文视频提取的 16k 单声道 WAV（约 195 秒）。短音频探针先完成 20 秒片段，随后完整视频音频在项目任务服务中完成：生成 842 字纯文本，进程峰值常驻内存约 2.33 GB，任务总耗时约 208 秒，无内存崩溃。隔离环境的短音频推理约 8.7 秒、完整音频推理约 40.8 秒；两环境 PyTorch 版本不同，速度不可直接比较。CPU 回退有模拟测试，本机未触发。此记录只验可用性，没有人工参考稿，不代表识别准确率或速度门槛。

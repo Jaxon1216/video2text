@@ -57,6 +57,13 @@ def build_transcriber(*, config: AppConfig, provider: str | None = None, model: 
             (selected_provider, selected_model),
             lambda: LocalWhisperTranscriber(model=selected_model),
         )
+    if selected_provider == "qwen3-asr":
+        from v2t.transcribers.qwen3_asr_local import Qwen3ASRTranscriber
+
+        return _cached(
+            (selected_provider, selected_model),
+            lambda: Qwen3ASRTranscriber(model=selected_model),
+        )
     if selected_provider == "sensevoice":
         from v2t.transcribers.sensevoice_local import SenseVoiceSmallTranscriber
 

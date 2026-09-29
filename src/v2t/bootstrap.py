@@ -164,6 +164,11 @@ def run_bootstrap(*, settings: Settings, interactive: bool = True) -> AppConfig:
             "enabled": "whisper" in config.enabled_providers,
         },
         {
+            "name": f"qwen3-asr  — {tr(lang, 'provider_qwen3-asr_short')}",
+            "value": "qwen3-asr",
+            "enabled": "qwen3-asr" in config.enabled_providers,
+        },
+        {
             "name": f"sensevoice — {tr(lang, 'provider_sensevoice_short')}",
             "value": "sensevoice",
             "enabled": "sensevoice" in config.enabled_providers,
@@ -215,6 +220,8 @@ def run_bootstrap(*, settings: Settings, interactive: bool = True) -> AppConfig:
             selected_faster_whisper_model = _configure_faster_whisper(config, lang)
         elif provider == "whisper":
             selected_whisper_model = _configure_whisper(config, lang)
+        elif provider == "qwen3-asr":
+            console.print(f"[dim]{tr(lang, 'bootstrap_qwen3_asr_model')}[/dim]")
         elif provider == "sensevoice":
             _configure_sensevoice(config, lang)
         elif provider == "volcengine":
@@ -240,7 +247,7 @@ def run_bootstrap(*, settings: Settings, interactive: bool = True) -> AppConfig:
     if config.default_provider == "faster-whisper" and selected_faster_whisper_model:
         config.default_model = selected_faster_whisper_model
 
-    if config.default_provider in ("sensevoice", "volcengine"):
+    if config.default_provider in ("qwen3-asr", "sensevoice", "volcengine"):
         config.default_model = provider_default_model(config, config.default_provider)
 
     # ── Save and show next steps ─────────────────────────────

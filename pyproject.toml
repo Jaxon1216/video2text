@@ -27,6 +27,11 @@ faster-whisper = [
 whisper = [
   "openai-whisper>=20240930",
 ]
+qwen3-asr = [
+  "qwen-asr==0.0.6",
+  "torch>=2.5.0",
+  "numpy>=1.26.0",
+]
 sensevoice = [
   "funasr-onnx>=0.4.0",
   "jieba>=0.42.1",

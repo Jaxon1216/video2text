@@ -24,6 +24,7 @@
 | --- | --- | --- |
 | faster-whisper（默认） | 本地 | CTranslate2 版 Whisper，CPU 上也快；中文自动输出简体和标点 |
 | Whisper | 本地 | openai-whisper，离线运行 |
+| Qwen3-ASR 0.6B | 本地 | 中文识别，M1 可用；首版无时间戳，不能导出 SRT |
 | SenseVoice | 本地 | 中文效果好，需要先下载模型 |
 | 火山引擎 | 云端 | 极速版 API，准确率高，需要 API Key |
 
@@ -33,6 +34,8 @@
 
 ```bash
 uv sync --extra faster-whisper --extra web --extra douyin
+# 想用 Qwen3-ASR 时把 qwen3-asr 加入同一条 sync 命令：
+uv sync --extra faster-whisper --extra qwen3-asr --extra web --extra douyin
 # 本机没有 Chrome 时才需要：
 uv run playwright install chromium
 ```
@@ -43,6 +46,7 @@ uv run playwright install chromium
 uv run video2text tx "https://www.bilibili.com/video/BV1xx411c7XD"
 uv run video2text tx "复制打开抖音，看看【xxx的作品】... https://v.douyin.com/xxxx/"
 uv run video2text tx ./my-video.mp4 --model medium
+uv run video2text tx ./my-video.mp4 --provider qwen3-asr --force-asr
 # 专业术语多时加提示词，识别会准很多：
 uv run video2text tx "<链接>" --prompt "线程池、核心线程、阻塞队列。"
 ```
@@ -65,6 +69,7 @@ uv run video2text ui   # http://127.0.0.1:8000
 文字稿详情还可选新模型重转写；已有完整音频会复用，新结果单独保留。任务列表和详情页支持中断排队或正在处理的任务。
 
 新配置默认 faster-whisper `large-v3-turbo`，首次识别时按需下载模型；模型选择页会显示本机缓存状态。国内网络请先 `export HF_ENDPOINT=https://hf-mirror.com`。
+Qwen3-ASR 首次使用会下载 0.6B 权重；结果可照常用 Copy for AI，但不带时间戳。
 
 ## Docker
 

@@ -13,7 +13,7 @@ video2text：把 B站 / 抖音视频链接快速转成**带时间戳的文字稿
 - CLI：typer；后端：FastAPI（纯 JSON API + 托管前端构建产物）；存储：SQLite + 本地文件
 - 前端：`web/` 下 Vite + React + TypeScript，无路由库、无 CSS 框架（手写阅读器风格样式），只做中文
 - 下载：yt-dlp（B站）、Playwright 浏览器截获（抖音）；音频：ffmpeg
-- ASR：faster-whisper（默认）/ openai-whisper / SenseVoice（本地）、火山引擎（云端）
+- ASR：faster-whisper（默认）/ openai-whisper / SenseVoice / Qwen3-ASR 0.6B（本地）、火山引擎（云端）
 
 ## 常用命令
 
@@ -21,8 +21,9 @@ video2text：把 B站 / 抖音视频链接快速转成**带时间戳的文字稿
 
 ```bash
 uv sync --extra faster-whisper --extra web --extra douyin   # 安装依赖（按需组合 extras）
+uv sync --extra faster-whisper --extra qwen3-asr --extra web --extra douyin  # 加装 Qwen3-ASR
 uv run playwright install chromium                     # 抖音解析需要的浏览器（仅本机无 Chrome 时）
-export HF_ENDPOINT=https://hf-mirror.com                # 国内下载 faster-whisper 模型
+export HF_ENDPOINT=https://hf-mirror.com                # 国内下载 HuggingFace 模型
 uv run pytest -q                                       # 跑测试（也可 .venv/bin/python -m pytest -q）
 uv run video2text tx "<B站链接 / 抖音分享文本 / 本地文件>"
 (cd web && npm install && npm run build)                # 构建前端（改了 web/ 之后要重新 build）
@@ -49,7 +50,7 @@ src/v2t/
   formatters.py     导出渲染：带时间戳 txt / plain / md / srt
   evaluation.py     评测指标：CER、术语召回
   downloaders/      ytdlp.py（B站：短链解析、字幕优先）、douyin.py（抖音）
-  transcribers/     faster_whisper_local.py、whisper_local.py、sensevoice_local.py、volcengine.py
+  transcribers/     faster_whisper_local.py、whisper_local.py、qwen3_asr_local.py、sensevoice_local.py、volcengine.py
   tasks.py          线程池任务服务 + 协作式中断 + 进度回调
   logging_config.py 正常轮询 access log 过滤与任务日志配置
   progress.py       阶段进度（stage -> 总进度区间）
@@ -76,6 +77,7 @@ docs/               架构、路线图、决策、平台说明、API
 - **保持简单**：不引入 Redis、消息队列、复杂数据库、登录权限等；SQLite + 线程池足够。确需引入必须先在 `docs/decisions.md` 记录理由。
 - **抖音**：不逆向 `a_bogus` 等签名算法；走 Playwright 浏览器截获（见 `docs/platforms/douyin.md`）。浏览器 UA 必须与实际系统一致（`default_user_agent`），否则详情接口返回空数据。
 - **模型配置**：新配置默认 faster-whisper large-v3-turbo，已有配置不迁移；模型档位只在 `model_catalog.py` 定义。扫描只检查文件，不能把文件存在等同于运行可用。
+- **Qwen3-ASR**：首版仅支持 0.6B；优先 Apple MPS，不兼容时回退 CPU。术语提示传官方 `context`；不接 ForcedAligner，返回空 `segments`，不提供 SRT。
 - **前端页面**：`/` 新建转写、`/tasks` 全部任务、`/videos` 文字稿库；详情沿用 `/tasks/:id`、`/videos/:id`。
 - **前端**：分段规则（30 秒）必须和 `formatters.py` 保持一致；Copy for AI 的文本格式在 `web/src/format.ts` 的 `buildCopyForAI`。
 - 代码风格跟随现有代码：`from __future__ import annotations`、dataclass、类型标注、少量必要注释。
