@@ -65,9 +65,11 @@ export function VideoPage({ videoId }: { videoId: number }) {
     try {
       const [config, models] = await Promise.all([getConfig(), getModels()]);
       const selected = models.items.some(item => item.provider === document?.engine) ? document!.engine : config.default_provider;
+      const group = models.items.find(item => item.provider === selected);
+      const previousModelAvailable = selected === document?.engine && group?.models.some(item => item.id === document.model);
       setCatalog(models.items);
       setProvider(selected);
-      setModel(selected === document?.engine ? document.model : models.items.find(item => item.provider === selected)?.default_model ?? "");
+      setModel(previousModelAvailable ? document!.model : group?.default_model ?? "");
       setRetranscribeError(null);
       setShowRetranscribe(true);
     } catch (err) {

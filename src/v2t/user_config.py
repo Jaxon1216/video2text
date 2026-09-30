@@ -5,7 +5,7 @@ import os
 from dataclasses import asdict, dataclass, field
 
 from v2t.config import Settings
-from v2t.model_catalog import DEFAULT_FASTER_WHISPER_MODEL, resolve_model
+from v2t.model_catalog import DEFAULT_FASTER_WHISPER_MODEL, QWEN3_ASR_MODEL, resolve_model
 from v2t.i18n import DEFAULT_LANGUAGE, normalize_language
 
 ALL_PROVIDERS = ("faster-whisper", "whisper", "qwen3-asr", "sensevoice", "volcengine")
@@ -63,12 +63,16 @@ class AppConfig:
             # backwards compat: old configs only had default_provider
             enabled = [data.get("default_provider", DEFAULT_PROVIDER)]
         features = [name for name in data.get("enabled_features", ["web"]) if name in ALL_FEATURES]
+        default_provider = data.get("default_provider", DEFAULT_PROVIDER)
+        default_model = data.get("default_model", "small")
+        if default_provider == "qwen3-asr" and default_model == "Qwen/Qwen3-ASR-0.6B":
+            default_model = QWEN3_ASR_MODEL
         return cls(
             language=normalize_language(data.get("language")),
             enabled_providers=enabled,
             enabled_features=features,
-            default_provider=data.get("default_provider", DEFAULT_PROVIDER),
-            default_model=data.get("default_model", "small"),
+            default_provider=default_provider,
+            default_model=default_model,
             prefer_subtitles=bool(data.get("prefer_subtitles", True)),
             faster_whisper=FasterWhisperConfig(**data.get("faster_whisper", {})),
             sensevoice=SenseVoiceConfig(**data.get("sensevoice", {})),

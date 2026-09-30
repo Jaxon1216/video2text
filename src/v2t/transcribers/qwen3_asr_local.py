@@ -14,12 +14,15 @@ from v2t.segments import normalize_segments
 from v2t.transcribers.base import Transcriber
 
 
+MAX_CHUNK_SECONDS = 60
+
+
 class Qwen3ASRTranscriber(Transcriber):
     name = "qwen3-asr"
 
     def __init__(self, *, model: str = QWEN3_ASR_MODEL) -> None:
         if model != QWEN3_ASR_MODEL:
-            raise ValueError("Qwen3-ASR currently supports only the 0.6B model")
+            raise ValueError("Qwen3-ASR currently supports only the 1.7B model")
         self.model_name = model
         self._model: Any | None = None
         self._device: str | None = None
@@ -36,28 +39,43 @@ class Qwen3ASRTranscriber(Transcriber):
             model = self._ensure_model()
             if progress is not None:
                 progress.running("transcribing", message="transcribing", indeterminate=True)
-            options = {"audio": samples, "context": (prompt or "").strip(),
-                       "language": "Chinese", "return_time_stamps": False}
-            try:
-                results = model.transcribe(**options)
-            except (RuntimeError, NotImplementedError) as exc:
-                if self._device != "mps" or not _mps_failure(exc):
-                    raise
+            chunk_size = MAX_CHUNK_SECONDS * samples[1]
+            texts: list[str] = []
+            language = "zh"
+            for offset in range(0, len(samples[0]), chunk_size):
                 if progress is not None:
                     progress.check_cancelled()
-                self._model = None
-                del model
-                gc.collect()
-                self._empty_mps_cache()
-                results = self._load_model("cpu").transcribe(**options)
+                options = {"audio": (samples[0][offset:offset + chunk_size], samples[1]),
+                           "context": (prompt or "").strip(), "language": "Chinese",
+                           "return_time_stamps": False}
+                try:
+                    results = model.transcribe(**options)
+                except (RuntimeError, NotImplementedError) as exc:
+                    if self._device != "mps" or not _mps_failure(exc):
+                        raise
+                    if progress is not None:
+                        progress.check_cancelled()
+                    self._model = None
+                    del model
+                    gc.collect()
+                    self._empty_mps_cache()
+                    model = self._load_model("cpu")
+                    results = model.transcribe(**options)
+                if progress is not None:
+                    progress.check_cancelled()
+                if not results:
+                    raise RuntimeError("Qwen3-ASR returned no transcription")
+                texts.append(str(results[0].text).strip())
+                language = "zh" if results[0].language == "Chinese" else str(results[0].language)
+                if progress is not None:
+                    progress.running("transcribing", message="transcribing",
+                                     stage_progress=min(1.0, (offset + chunk_size) / len(samples[0])))
             if progress is not None:
-                progress.check_cancelled()
                 progress.running("transcribing", message="transcribing", stage_progress=1.0)
-        if not results:
+        if not texts:
             raise RuntimeError("Qwen3-ASR returned no transcription")
-        return {"text": str(results[0].text).strip(), "segments": normalize_segments([]),
-                "language": "zh" if results[0].language == "Chinese" else str(results[0].language),
-                "model": self.model_name}
+        return {"text": "\n".join(text for text in texts if text), "segments": normalize_segments([]),
+                "language": language, "model": self.model_name}
 
     def _ensure_model(self) -> Any:
         if self._model is not None:
@@ -85,6 +103,7 @@ class Qwen3ASRTranscriber(Transcriber):
         dtype = torch.float16 if mode == "mps" else torch.float32
         self._model = Qwen3ASRModel.from_pretrained(
             self.model_name, device_map=mode, dtype=dtype, max_inference_batch_size=1,
+            max_new_tokens=2048,
         )
         self._device = mode
         return self._model

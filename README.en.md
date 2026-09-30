@@ -24,7 +24,7 @@ A personal project built on top of [bili2text](https://github.com/lanbinleo/bili
 | --- | --- | --- |
 | faster-whisper (default) | local | Whisper on CTranslate2, fast on CPU |
 | Whisper | local | openai-whisper, offline |
-| Qwen3-ASR 0.6B | local | Chinese transcription on Apple MPS or CPU; no timestamps or SRT yet |
+| Qwen3-ASR 1.7B | local | Chinese transcription on Apple MPS or CPU; no timestamps or SRT yet |
 | SenseVoice | local | strong on Mandarin, model download required |
 | Volcengine | cloud | flash ASR API, accurate, needs an API key |
 
@@ -50,6 +50,7 @@ Docker: `docker compose up -d --build`, then open http://localhost:8000 (details
 
 The web UI has separate pages for new transcriptions, task status, and transcript history. New configurations default to faster-whisper `large-v3-turbo`; existing settings are preserved. The model picker shows local cache status and refreshes it without downloading weights.
 Tasks can be cancelled from the task list or detail page. A video's detail page can rerun ASR with another model and reuse a verified cached WAV. Qwen3-ASR produces plain text for Copy for AI; SRT requires another engine with timestamps.
+Qwen3-ASR now uses only 1.7B (about 4.7 GB of weights). Earlier 0.6B transcripts remain in the library; rerunning them selects 1.7B.
 
 See [AGENTS.md](AGENTS.md) and [docs/](docs/) for architecture, development and API docs.
 

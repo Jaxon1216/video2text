@@ -43,8 +43,8 @@ def page(request):
                      "models": [{"id": value, "label": value} for value in ["large-v3-turbo", "small"]]},
                     {"provider": "whisper", "default_model": "small", "enabled": False,
                      "models": [{"id": "small", "label": "small"}]},
-                    {"provider": "qwen3-asr", "default_model": "Qwen/Qwen3-ASR-0.6B", "enabled": False,
-                     "models": [{"id": "Qwen/Qwen3-ASR-0.6B", "label": "Qwen3-ASR 0.6B"}]},
+                    {"provider": "qwen3-asr", "default_model": "Qwen/Qwen3-ASR-1.7B", "enabled": False,
+                     "models": [{"id": "Qwen/Qwen3-ASR-1.7B", "label": "Qwen3-ASR 1.7B"}]},
                     {"provider": "sensevoice", "default_model": "", "enabled": False, "models": []},
                     {"provider": "volcengine", "default_model": "bigmodel", "enabled": False,
                      "models": [{"id": "bigmodel", "label": "bigmodel"}]},
@@ -316,7 +316,28 @@ def test_qwen_model_can_be_selected_for_retranscription(page):
     page.goto(f"{URL}/videos/1")
     page.get_by_role("button", name="换模型重转写").click()
     page.get_by_role("combobox", name="识别引擎").select_option("qwen3-asr")
-    expect(page.get_by_role("combobox", name="模型")).to_have_value("Qwen/Qwen3-ASR-0.6B")
+    expect(page.get_by_role("combobox", name="模型")).to_have_value("Qwen/Qwen3-ASR-1.7B")
     page.get_by_role("button", name="开始重转写").click()
     expect(page).to_have_url(f"{URL}/tasks/qwen-task")
-    assert submitted[0]["model"] == "Qwen/Qwen3-ASR-0.6B"
+    assert submitted[0]["model"] == "Qwen/Qwen3-ASR-1.7B"
+
+
+def test_old_qwen_transcript_retranscribes_with_available_model(page):
+    from playwright.sync_api import expect
+
+    page.route("**/api/videos/1/document", lambda route: route.fulfill(json={
+        **DOCUMENT, "engine": "qwen3-asr", "model": "Qwen/Qwen3-ASR-0.6B",
+        "has_timestamps": False, "segments": [],
+    }))
+    submitted = []
+
+    def create(route):
+        submitted.append(route.request.post_data_json)
+        route.fulfill(json={"task_id": "qwen-new", "status": "queued"})
+
+    page.route("**/api/videos/1/retranscribe", create)
+    page.goto(f"{URL}/videos/1")
+    page.get_by_role("button", name="换模型重转写").click()
+    page.get_by_role("button", name="开始重转写").click()
+    expect(page).to_have_url(f"{URL}/tasks/qwen-new")
+    assert submitted[0]["model"] == "Qwen/Qwen3-ASR-1.7B"

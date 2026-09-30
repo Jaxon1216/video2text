@@ -200,13 +200,13 @@ def test_qwen_provider_is_available_without_timestamps_or_srt(tmp_path: Path) ->
     app, service, _, _ = build_test_app(tmp_path)
     client = TestClient(app)
     models = {item["provider"]: item for item in client.get("/api/models").json()["items"]}
-    assert [item["id"] for item in models["qwen3-asr"]["models"]] == ["Qwen/Qwen3-ASR-0.6B"]
+    assert [item["id"] for item in models["qwen3-asr"]["models"]] == ["Qwen/Qwen3-ASR-1.7B"]
     assert client.post("/api/tasks/transcribe", json={"source": "BV1xx411c7XD", "provider": "qwen3-asr",
-                                                        "model": "Qwen/Qwen3-ASR-1.7B"}).status_code == 400
+                                                        "model": "Qwen/Qwen3-ASR-0.6B"}).status_code == 400
     created = client.post("/api/tasks/transcribe", json={"source": "BV1xx411c7XD", "provider": "qwen3-asr"})
     assert created.status_code == 200
     task = service.wait_for_task(created.json()["task_id"])
-    assert task.model == "Qwen/Qwen3-ASR-0.6B"
+    assert task.model == "Qwen/Qwen3-ASR-1.7B"
     document = client.get(f"/api/videos/{task.video_id}/document").json()
     assert document["has_timestamps"] is False
     assert client.get(f"/api/videos/{task.video_id}/export?format=srt").status_code == 400

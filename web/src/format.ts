@@ -12,7 +12,7 @@ export const PLATFORM_LABELS: Record<string, string> = {
 export const PROVIDER_LABELS: Record<string, string> = {
   "faster-whisper": "faster-whisper（本地，推荐）",
   whisper: "Whisper（本地）",
-  "qwen3-asr": "Qwen3-ASR 0.6B（本地，无时间戳）",
+  "qwen3-asr": "Qwen3-ASR 1.7B（本地，无时间戳）",
   sensevoice: "SenseVoice（本地）",
   volcengine: "火山引擎（云端）",
 };

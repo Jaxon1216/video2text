@@ -24,7 +24,7 @@
 | --- | --- | --- |
 | faster-whisper（默认） | 本地 | CTranslate2 版 Whisper，CPU 上也快；中文自动输出简体和标点 |
 | Whisper | 本地 | openai-whisper，离线运行 |
-| Qwen3-ASR 0.6B | 本地 | 中文识别，M1 可用；首版无时间戳，不能导出 SRT |
+| Qwen3-ASR 1.7B | 本地 | 中文识别，优先 Apple MPS；无时间戳，不能导出 SRT |
 | SenseVoice | 本地 | 中文效果好，需要先下载模型 |
 | 火山引擎 | 云端 | 极速版 API，准确率高，需要 API Key |
 
@@ -69,7 +69,7 @@ uv run video2text ui   # http://127.0.0.1:8000
 文字稿详情还可选新模型重转写；已有完整音频会复用，新结果单独保留。任务列表和详情页支持中断排队或正在处理的任务。
 
 新配置默认 faster-whisper `large-v3-turbo`，首次识别时按需下载模型；模型选择页会显示本机缓存状态。国内网络请先 `export HF_ENDPOINT=https://hf-mirror.com`。
-Qwen3-ASR 首次使用会下载 0.6B 权重；结果可照常用 Copy for AI，但不带时间戳。
+Qwen3-ASR 首次使用会下载 1.7B 权重（约 4.7 GB）；结果可照常用 Copy for AI，但不带时间戳。已有 0.6B 文字稿保留，重新识别时会选 1.7B。
 
 ## Docker
 

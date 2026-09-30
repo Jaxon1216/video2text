@@ -111,17 +111,18 @@ def test_unreadable_cache_reports_unknown(tmp_path, monkeypatch):
 def test_qwen_cache_scan_only_checks_current_snapshot_files(tmp_path, monkeypatch):
     monkeypatch.setenv('HF_HUB_CACHE', str(tmp_path))
     config = AppConfig()
-    model = 'Qwen/Qwen3-ASR-0.6B'
+    model = 'Qwen/Qwen3-ASR-1.7B'
     assert inspect_model(config, 'qwen3-asr', model)['cache_status'] == 'missing'
-    repo = tmp_path / 'models--Qwen--Qwen3-ASR-0.6B'
+    repo = tmp_path / 'models--Qwen--Qwen3-ASR-1.7B'
     snapshot = repo / 'snapshots' / ('a' * 40)
     snapshot.mkdir(parents=True)
-    for name in ('config.json', 'model.safetensors', 'preprocessor_config.json',
-                 'tokenizer_config.json', 'vocab.json', 'merges.txt'):
+    for name in ('config.json', 'model.safetensors.index.json', 'model-00001-of-00002.safetensors',
+                 'model-00002-of-00002.safetensors', 'preprocessor_config.json', 'tokenizer_config.json',
+                 'vocab.json', 'merges.txt'):
         (snapshot / name).write_text('data')
     assert inspect_model(config, 'qwen3-asr', model)['cache_status'] == 'incomplete'
     (repo / 'refs').mkdir()
     (repo / 'refs/main').write_text('a' * 40)
     assert inspect_model(config, 'qwen3-asr', model)['cache_status'] == 'found'
-    (snapshot / 'model.safetensors').write_text('')
+    (snapshot / 'model-00002-of-00002.safetensors').write_text('')
     assert inspect_model(config, 'qwen3-asr', model)['cache_status'] == 'incomplete'

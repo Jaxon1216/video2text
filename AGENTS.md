@@ -13,7 +13,7 @@ video2text：把 B站 / 抖音视频链接快速转成**带时间戳的文字稿
 - CLI：typer；后端：FastAPI（纯 JSON API + 托管前端构建产物）；存储：SQLite + 本地文件
 - 前端：`web/` 下 Vite + React + TypeScript，无路由库、无 CSS 框架（手写阅读器风格样式），只做中文
 - 下载：yt-dlp（B站）、Playwright 浏览器截获（抖音）；音频：ffmpeg
-- ASR：faster-whisper（默认）/ openai-whisper / SenseVoice / Qwen3-ASR 0.6B（本地）、火山引擎（云端）
+- ASR：faster-whisper（默认）/ openai-whisper / SenseVoice / Qwen3-ASR 1.7B（本地）、火山引擎（云端）
 
 ## 常用命令
 
@@ -77,7 +77,7 @@ docs/               架构、路线图、决策、平台说明、API
 - **保持简单**：不引入 Redis、消息队列、复杂数据库、登录权限等；SQLite + 线程池足够。确需引入必须先在 `docs/decisions.md` 记录理由。
 - **抖音**：不逆向 `a_bogus` 等签名算法；走 Playwright 浏览器截获（见 `docs/platforms/douyin.md`）。浏览器 UA 必须与实际系统一致（`default_user_agent`），否则详情接口返回空数据。
 - **模型配置**：新配置默认 faster-whisper large-v3-turbo，已有配置不迁移；模型档位只在 `model_catalog.py` 定义。扫描只检查文件，不能把文件存在等同于运行可用。
-- **Qwen3-ASR**：首版仅支持 0.6B；优先 Apple MPS，不兼容时回退 CPU。术语提示传官方 `context`；不接 ForcedAligner，返回空 `segments`，不提供 SRT。
+- **Qwen3-ASR**：当前仅支持 1.7B；旧 0.6B 转写稿保留、旧默认配置运行时切到 1.7B。优先 Apple MPS，不兼容时回退 CPU。音频按 60 秒分段，术语提示传官方 `context`，每段生成上限 2048 token；不接 ForcedAligner，返回空 `segments`，不提供 SRT。
 - **前端页面**：`/` 新建转写、`/tasks` 全部任务、`/videos` 文字稿库；详情沿用 `/tasks/:id`、`/videos/:id`。
 - **前端**：分段规则（30 秒）必须和 `formatters.py` 保持一致；Copy for AI 的文本格式在 `web/src/format.ts` 的 `buildCopyForAI`。
 - 代码风格跟随现有代码：`from __future__ import annotations`、dataclass、类型标注、少量必要注释。

@@ -80,8 +80,8 @@ def inspect_model(config: AppConfig, provider: str, model: str) -> dict:
             return _directory_status(Path(model).expanduser(), ("model.onnx", "config.yaml", "am.mvn", "chn_jpn_yue_eng_ko_spectok.bpe.model"))
         if provider == "qwen3-asr":
             if model != QWEN3_ASR_MODEL:
-                return _result("unknown", "首版仅支持 Qwen3-ASR 0.6B")
-            repository = huggingface_cache_root() / "models--Qwen--Qwen3-ASR-0.6B"
+                return _result("unknown", "当前仅支持 Qwen3-ASR 1.7B")
+            repository = huggingface_cache_root() / "models--Qwen--Qwen3-ASR-1.7B"
             if not repository.exists():
                 return _result("missing", "未下载，首次识别需要下载模型", True)
             ref = repository / "refs" / "main"
@@ -91,8 +91,10 @@ def inspect_model(config: AppConfig, provider: str, model: str) -> dict:
             if not re.fullmatch(r"[0-9a-f]{40}", revision):
                 return _result("incomplete", "缓存版本引用无效", True)
             snapshot = repository / "snapshots" / revision
-            return _directory_status(snapshot, ("config.json", "model.safetensors", "preprocessor_config.json",
-                                                "tokenizer_config.json", "vocab.json", "merges.txt"), downloadable=True)
+            return _directory_status(snapshot, ("config.json", "model.safetensors.index.json",
+                                                "model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors",
+                                                "preprocessor_config.json", "tokenizer_config.json", "vocab.json",
+                                                "merges.txt"), downloadable=True)
         if provider == "whisper":
             aliases = _engine_aliases("openai-whisper", "whisper/__init__.py", {name: f"{name if name != 'large' else 'large-v3'}.pt" for name in WHISPER_MODELS})
             if model in aliases:

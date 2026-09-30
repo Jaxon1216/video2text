@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 FASTER_WHISPER_MODELS = ("large-v3-turbo", "large-v3", "medium", "small", "base", "tiny")
 WHISPER_MODELS = ("tiny", "base", "small", "medium", "large")
 DEFAULT_FASTER_WHISPER_MODEL = "large-v3-turbo"
-QWEN3_ASR_MODEL = "Qwen/Qwen3-ASR-0.6B"
+QWEN3_ASR_MODEL = "Qwen/Qwen3-ASR-1.7B"
 
 
 def provider_default_model(config: AppConfig, provider: str) -> str:
@@ -29,7 +29,7 @@ def resolve_model(config: AppConfig, provider: str, model: str | None = None) ->
     """An explicit model wins; a different provider never inherits the global model."""
     if provider == "qwen3-asr":
         if model and model.strip() != QWEN3_ASR_MODEL:
-            raise ValueError("Qwen3-ASR currently supports only the 0.6B model")
+            raise ValueError("Qwen3-ASR currently supports only the 1.7B model")
         return QWEN3_ASR_MODEL
     fallback = provider_default_model(config, provider)
     if model and model.strip():
@@ -41,7 +41,7 @@ def resolve_model(config: AppConfig, provider: str, model: str | None = None) ->
 
 def model_choices(config: AppConfig, provider: str) -> list[dict[str, str]]:
     if provider == "qwen3-asr":
-        return [{"id": QWEN3_ASR_MODEL, "label": "Qwen3-ASR 0.6B"}]
+        return [{"id": QWEN3_ASR_MODEL, "label": "Qwen3-ASR 1.7B"}]
     models = list(FASTER_WHISPER_MODELS if provider == "faster-whisper" else WHISPER_MODELS if provider == "whisper" else ())
     if provider in ("sensevoice", "volcengine"):
         configured = provider_default_model(config, provider)

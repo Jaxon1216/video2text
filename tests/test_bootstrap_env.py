@@ -42,7 +42,7 @@ def test_bootstrap_can_select_qwen_as_default(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(bootstrap_module, "_show_next_steps", lambda **kwargs: None)
     updated = run_bootstrap(settings=settings, interactive=True)
     assert updated.default_provider == "qwen3-asr"
-    assert updated.default_model == "Qwen/Qwen3-ASR-0.6B"
+    assert updated.default_model == "Qwen/Qwen3-ASR-1.7B"
 
 
 def test_build_uv_sync_command_is_stable() -> None:
