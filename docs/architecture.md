@@ -29,6 +29,43 @@ flowchart LR
 6. `library.register_transcript_result` 在 SQLite 里登记 video 和当前转写稿版本。
 7. 展示与导出时，`library.load_document(video_id)` 组装 `TranscriptDocument`（元数据 + 当前文本 + segments），交给 `formatters.export_document` 渲染成 txt / plain / md / srt。编辑过的版本不带时间戳。
 
+## 远程媒体怎么拿到
+
+`pipeline.py` 先调用 `inputs.py` 的 `parse_source`。这一步只在本机看文本：有 `BV` 或 `bilibili.com` / `b23.tv` 就是 B站，有 `douyin.com` 就是抖音，本机已有的音视频文件则不下载。短链是两个 App「复制链接」时自己发的短地址，方便塞进微信和短信；短地址里通常没有 BV 号或视频数字 ID，所以解析阶段只能认出平台，展开留给对应下载器。
+
+远程来源再由 `factory.py` 按 `source.kind` 选下载器。两边最后都是 HTTP，差别是这条请求能不能由本仓库自己拼出来。B站可以。抖音的详情请求必须由抖音网页里的脚本签名，终端里直接 curl 过不了人机校验，也带不上签名。配置和报错表在 `docs/platforms/`，取舍在 `docs/decisions.md` 的 D2。
+
+识别只用音频。WAV 是 16kHz、单声道的声音文件，没有画面。有字幕时连媒体都不下。
+
+### 例：B站短链
+
+输入像 `【Rust 入门】https://b23.tv/AbCdEf`。
+
+1. `inputs.py` 抽出 `https://b23.tv/AbCdEf`，记成 B站短链。此时还没有 BV 号。
+2. `downloaders/ytdlp.py` 的 `resolve_source` 跟随跳转，得到 `https://www.bilibili.com/video/BVxxxx`。地址带 `?p=2` 时只处理第 2 P。
+3. `prefer_subtitles` 默认开着。`fetch_subtitles` 向 B站要字幕和标题，不把媒体文件存下来。语言优先人工中文，其次 B站 AI 字幕（`ai-zh`），再英文。弹幕 `danmaku` 和 `live_chat` 丢掉。正文是 SRT 或 B站 JSON，都收成 `{start, end, text}`（秒）。有有效片段就结束：`pipeline.py` 写 txt 和 metadata JSON，`transcript_source=subtitle`，不下载、不抽音频、不跑模型。
+4. 没有字幕，或这次指定强制 ASR，才调用同一个文件里的 `download`。它把画面流和声音流合成一个 mp4，存到 `<工作区>/downloads/`。这一步确实把画面也下下来了。
+5. `pipeline.py` 的 `_extract_audio` 用 ffmpeg 只抽出声音，写成 16kHz 单声道 WAV。识别读的是这个 WAV。mp4 留在下载目录，转写不用它的画面。完整 WAV 按 BV 号（B站再加分 P）缓存。
+
+B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只给弹幕，字幕列表是空的，流程会落到识别。Cookie 顺序是 `V2T_COOKIE_FILE`、工作区 `cookies.txt`、再 `V2T_COOKIES_FROM_BROWSER`。CDN 经常把代理打成 HTTP 412，所以默认直连，`V2T_USE_PROXY=1` 才走系统代理。这些用 Cookie 和直连就能过，不必先把 B站网页在浏览器里跑起来。
+
+### 例：抖音分享文案
+
+输入像 `复制打开抖音，看看【城市夜跑】https://v.douyin.com/iRxxxxxx/`。
+
+1. `inputs.py` 抽出短链。短链里看不出数字 ID。长链 `www.douyin.com/video/{id}` 能直接抽出 ID。
+2. 抖音没有可用字幕，`downloaders/douyin.py` 不实现 `fetch_subtitles`，`pipeline.py` 直接 `download`。
+3. `fetch_aweme_detail` 用 Playwright 启动本机 Chrome（没有则用自带 Chromium），打开短链或 `https://www.douyin.com/video/{id}`。Playwright 在这里不是在做页面测试。它启动一个真浏览器，让抖音页面自己的 JavaScript 做人机校验、按当前浏览器指纹计算签名（查询参数里常见 `a_bogus`），再去请求 `/aweme/v1/web/aweme/detail/`。打开页面前就在等这个响应，HTTP 200 时读 body。签名留在页面发出的那条请求上，本仓库不解析、不保存这套算法。
+4. 抄下来的是响应 JSON，有用的部分在 `aweme_detail`：`aweme_id`、`desc`（标题，去掉 `#话题` 和 `@`）、`author.nickname`、`video.duration`（毫秒），以及音频地址。`video.bit_rate_audio` 按码率从低到高，优先最低的纯音频（`main_url`，其次 `backup_url`、`fallback_url`）。没有纯音频才用 `play_addr` 里带画面的 mp4。`images` 表示图文，没有口播，直接报错。没有 `aweme_detail` 而有 `filter_detail.filter_reason`，表示已删除、私密或仅粉丝可见，同样报错。
+5. 浏览器随后关闭。音频地址用 urllib 下载到 `<工作区>/downloads/douyin-{id}.m4a`，必须带 `Referer: https://www.douyin.com/`，否则 CDN 会挂起。这一步才是终端里那种普通请求。默认不下画面；只有退回 `play_addr` 时，mp4 里才有画面，后面同样拆成 WAV。
+6. 之后和 B站没字幕时一样：`_extract_audio` 得到 WAV，缓存，再交给本地模型或火山引擎。
+
+纯 HTTP 打不开这条路：curl 短链得到的是校验页；不带页面算出的签名去打详情接口，会得到空 body 或被拒绝。空 body 也可以是 HTTP 200，常见原因是 UA 和真实系统不一致（`default_user_agent()` 按 macOS / Windows / Linux 分开写）。浏览器用户目录是 `<工作区>/browser`，同一时间只能开一个，解析会排队。超时多半停在校验页，`V2T_DOUYIN_HEADLESS=0` 可以看到窗口里的页面。
+
+### 汇合点
+
+有字幕时，管道只有文字和分段，没有媒体文件。没有字幕时，两条路径都留下一个本地媒体文件（B站通常是带画面的 mp4，抖音通常是纯音频）和标题、作者、时长、原页面地址，再变成同一份 WAV 交给转写器。平台差异停在工厂选出的下载器里。前端不读磁盘：任务完成后 API 读 txt 和 metadata JSON，把分段返回给页面。
+
 ## 模块职责
 
 | 模块 | 职责 |

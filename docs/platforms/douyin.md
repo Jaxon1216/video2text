@@ -1,5 +1,7 @@
 # 抖音
 
+抖音不实现请求签名。Playwright 打开视频页，截获页面自己请求的详情 JSON，再用普通 HTTP 下载音频。机制说明见 `docs/architecture.md` 的「远程媒体怎么拿到」。
+
 ## 支持范围
 
 - 支持：正常公开的视频。输入可以是 App 里复制的整段分享文本，也可以是 `v.douyin.com/xxx` 短链、`www.douyin.com/video/{id}`、`iesdouyin.com/share/video/{id}`、带 `modal_id=` 的链接。

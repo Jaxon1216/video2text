@@ -1,5 +1,7 @@
 # B站
 
+B站的媒体和字幕都通过 yt-dlp 获取。短链展开、字幕优先和 Cookie 在下载器里完成，机制说明见 `docs/architecture.md` 的「远程媒体怎么拿到」。
+
 ## 支持范围
 
 - 输入：BV 号、`bilibili.com/video/BV...` 链接、`b23.tv` 短链、App 里复制的整段分享文本。
