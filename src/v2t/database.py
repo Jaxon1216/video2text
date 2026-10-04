@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime
 
 from v2t.config import Settings
+from v2t.migrations import migrate_database
 from v2t.models import ProgressSnapshot, TaskRecord, TranscriptVersionRecord
 
 
@@ -29,97 +30,7 @@ class AppDatabase:
 
     def _init_schema(self) -> None:
         with self._connect() as conn:
-            conn.executescript(
-                """
-                PRAGMA journal_mode=WAL;
-
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id TEXT PRIMARY KEY,
-                    kind TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    source_input TEXT NOT NULL,
-                    provider TEXT NOT NULL,
-                    model TEXT NOT NULL,
-                    workspace_root TEXT NOT NULL,
-                    cancel_requested INTEGER NOT NULL DEFAULT 0,
-                    progress_percent REAL NOT NULL DEFAULT 0,
-                    current_stage TEXT NOT NULL DEFAULT 'queued',
-                    current_message TEXT NOT NULL DEFAULT '',
-                    error_message TEXT NOT NULL DEFAULT '',
-                    video_id INTEGER,
-                    created_at TEXT NOT NULL,
-                    started_at TEXT,
-                    finished_at TEXT
-                );
-
-                CREATE TABLE IF NOT EXISTS task_progress_events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    task_id TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    stage TEXT NOT NULL,
-                    message TEXT NOT NULL DEFAULT '',
-                    percent REAL NOT NULL DEFAULT 0,
-                    indeterminate INTEGER NOT NULL DEFAULT 0,
-                    detail_json TEXT NOT NULL DEFAULT '{}',
-                    created_at TEXT NOT NULL
-                );
-
-                CREATE TABLE IF NOT EXISTS categories (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE,
-                    slug TEXT NOT NULL UNIQUE,
-                    created_at TEXT NOT NULL
-                );
-
-                CREATE TABLE IF NOT EXISTS tags (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE,
-                    slug TEXT NOT NULL UNIQUE,
-                    created_at TEXT NOT NULL
-                );
-
-                CREATE TABLE IF NOT EXISTS videos (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    source_kind TEXT NOT NULL,
-                    source_input TEXT NOT NULL,
-                    source_url TEXT,
-                    source_bv TEXT,
-                    title TEXT NOT NULL,
-                    display_name TEXT NOT NULL,
-                    language TEXT,
-                    engine TEXT NOT NULL,
-                    model TEXT NOT NULL,
-                    video_path TEXT,
-                    audio_path TEXT NOT NULL,
-                    metadata_path TEXT NOT NULL UNIQUE,
-                    current_transcript_version_id INTEGER,
-                    category_id INTEGER,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                );
-
-                CREATE TABLE IF NOT EXISTS transcript_versions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    video_id INTEGER NOT NULL,
-                    kind TEXT NOT NULL,
-                    file_path TEXT NOT NULL,
-                    text_sha256 TEXT NOT NULL,
-                    char_count INTEGER NOT NULL,
-                    is_active INTEGER NOT NULL DEFAULT 0,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                );
-
-                CREATE TABLE IF NOT EXISTS video_tags (
-                    video_id INTEGER NOT NULL,
-                    tag_id INTEGER NOT NULL,
-                    PRIMARY KEY (video_id, tag_id)
-                );
-                """
-            )
-            columns = {row[1] for row in conn.execute("PRAGMA table_info(tasks)")}
-            if "cancel_requested" not in columns:
-                conn.execute("ALTER TABLE tasks ADD COLUMN cancel_requested INTEGER NOT NULL DEFAULT 0")
+            migrate_database(conn)
 
     def create_task(self, *, kind: str, source_input: str, provider: str, model: str) -> TaskRecord:
         now = utc_now()

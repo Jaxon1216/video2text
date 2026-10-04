@@ -56,6 +56,7 @@ src/v2t/
   progress.py       阶段进度（stage -> 总进度区间）
   library.py        把结果登记进视频库、管理转写稿版本、准备重转写来源与旧音频
   database.py       SQLite：tasks / task_progress_events / videos / transcript_versions / tags / categories
+  migrations.py     SQLite 建表与按 PRAGMA user_version 执行的版本迁移
   web.py            FastAPI：/api/* + 托管 web/dist（前端路由回退到 index.html）
   user_config.py    .v2t/config.json 读写
   bootstrap.py      首次运行配置向导

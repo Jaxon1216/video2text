@@ -82,7 +82,8 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 | `tasks.py` | `ThreadPoolExecutor`（并发数 `V2T_TASK_WORKERS`，默认 1）；提交新转写或换模型重转写任务、管理取消令牌，把进度快照写库并通知监听者 |
 | `progress.py` | 各阶段占总进度的区间：preparing / downloading / extracting_audio / transcribing / writing_outputs / indexing |
 | `library.py` | 登记结果、编辑后另存新版本、启动时扫描工作区补索引；重转写前核对来源并导入可复用旧音频 |
-| `database.py` | SQLite 表结构与查询 |
+| `database.py` | SQLite 连接、查询与写入 |
+| `migrations.py` | SQLite 表结构与版本迁移；启动时由 `AppDatabase` 调用 |
 | `web.py` | FastAPI：`/api/*`（接口见 `docs/api.md`）+ 托管 `web/dist`，非 API 路径回退到 `index.html`；没构建时返回提示页 |
 | `web/`（前端） | React SPA：新建转写 `/`、任务列表 `/tasks`、文字稿列表 `/videos`；保留任务与文字稿详情。单条提交进入任务详情，批量进入任务列表；完成后跳转文字稿并提示保存成功 |
 | `user_config.py` / `bootstrap.py` | `config.json` 读写与首次配置向导 |
@@ -115,6 +116,8 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 - `categories` / `tags` / `video_tags`：分类与标签
 
 `tasks.kind` 与 `transcript_versions.kind` 是以后扩展"总结 / 分章节"等新任务、新产物的挂载点。
+
+数据库使用 SQLite `PRAGMA user_version` 标记结构版本。`migrations.py` 在打开工作区时把未标版本的旧库升级到版本 1：保留已有数据，并为早期 `tasks` 表补上 `cancel_requested`。新库使用同一升级路径建表；已是版本 1 的库不会重复执行 DDL。若数据库版本高于当前程序支持的版本，启动会报错，避免旧程序误写新库。迁移中的建表、补列和版本号写入在同一事务中完成。
 
 ## 配置与环境变量
 

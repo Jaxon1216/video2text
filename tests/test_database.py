@@ -1,5 +1,8 @@
 import json
+import sqlite3
 from pathlib import Path
+
+import pytest
 
 from v2t.config import Settings
 from v2t.database import AppDatabase
@@ -14,6 +17,53 @@ def test_settings_create_database_and_workspace_directories(tmp_path: Path) -> N
     assert settings.transcripts_original_dir.exists()
     assert settings.transcripts_edited_dir.exists()
     assert settings.tasks_dir.exists()
+
+
+def test_new_database_has_versioned_schema(tmp_path: Path) -> None:
+    database = AppDatabase(Settings.from_workspace(tmp_path / ".v2t"))
+    with sqlite3.connect(database.path) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(tasks)")}
+        assert "cancel_requested" in columns
+
+
+def test_legacy_task_schema_is_upgraded_without_losing_rows(tmp_path: Path) -> None:
+    settings = Settings.from_workspace(tmp_path / ".v2t")
+    settings.ensure_directories()
+    with sqlite3.connect(settings.app_db_path) as conn:
+        conn.execute(
+            """CREATE TABLE tasks (
+                id TEXT PRIMARY KEY, kind TEXT NOT NULL, status TEXT NOT NULL,
+                source_input TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL,
+                workspace_root TEXT NOT NULL, progress_percent REAL NOT NULL DEFAULT 0,
+                current_stage TEXT NOT NULL DEFAULT 'queued', current_message TEXT NOT NULL DEFAULT '',
+                error_message TEXT NOT NULL DEFAULT '', video_id INTEGER, created_at TEXT NOT NULL,
+                started_at TEXT, finished_at TEXT
+            )"""
+        )
+        conn.execute(
+            """INSERT INTO tasks
+                (id, kind, status, source_input, provider, model, workspace_root, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("old", "transcription", "failed", "BV1xx411c7XD", "whisper", "small",
+             str(settings.workspace_root), "2026-09-29"),
+        )
+    database = AppDatabase(settings)
+    assert database.get_task("old").id == "old"
+    with sqlite3.connect(database.path) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert conn.execute("SELECT cancel_requested FROM tasks WHERE id = 'old'").fetchone()[0] == 0
+    AppDatabase(settings)
+    assert database.get_task("old").id == "old"
+
+
+def test_newer_schema_version_is_rejected(tmp_path: Path) -> None:
+    settings = Settings.from_workspace(tmp_path / ".v2t")
+    settings.ensure_directories()
+    with sqlite3.connect(settings.app_db_path) as conn:
+        conn.execute("PRAGMA user_version = 999")
+    with pytest.raises(RuntimeError, match="newer database schema"):
+        AppDatabase(settings)
 
 
 def test_database_persists_task_progress(tmp_path: Path) -> None:
