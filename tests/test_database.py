@@ -57,6 +57,30 @@ def test_legacy_task_schema_is_upgraded_without_losing_rows(tmp_path: Path) -> N
     assert database.get_task("old").id == "old"
 
 
+def test_unversioned_database_preserves_video_and_transcript_version(tmp_path: Path) -> None:
+    settings = Settings.from_workspace(tmp_path / ".v2t")
+    database = AppDatabase(settings)
+    video_id = database.create_video(
+        source_kind="bilibili", source_input="BV1xx411c7XD", source_url=None,
+        source_bv="BV1xx411c7XD", title="旧视频", display_name="旧视频",
+        language="zh", engine="whisper", model="small", video_path=None,
+        audio_path="", metadata_path="metadata/old.json",
+    )
+    version_id = database.create_transcript_version(
+        video_id=video_id, kind="original", file_path="transcripts/original/old.txt",
+        text_sha256="abc", char_count=3, is_active=True,
+    )
+    with sqlite3.connect(database.path) as conn:
+        conn.execute("PRAGMA user_version = 0")
+
+    upgraded = AppDatabase(settings)
+
+    assert upgraded.get_video(video_id)["title"] == "旧视频"
+    assert upgraded.get_active_transcript_version(video_id).id == version_id
+    with sqlite3.connect(upgraded.path) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+
+
 def test_newer_schema_version_is_rejected(tmp_path: Path) -> None:
     settings = Settings.from_workspace(tmp_path / ".v2t")
     settings.ensure_directories()
