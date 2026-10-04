@@ -79,9 +79,9 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 | `transcribers/` | `Transcriber.transcribe(audio_path, prompt, progress) -> dict` |
 | `factory.py` | 组装 pipeline：provider -> Transcriber（按 provider + model + 配置缓存，模型只加载一次），kind -> Downloader |
 | `pipeline.py` | 唯一的流程编排处 |
-| `tasks.py` | `ThreadPoolExecutor`（并发数 `V2T_TASK_WORKERS`，默认 1）；管理取消令牌，把进度快照写库并通知监听者 |
+| `tasks.py` | `ThreadPoolExecutor`（并发数 `V2T_TASK_WORKERS`，默认 1）；提交新转写或换模型重转写任务、管理取消令牌，把进度快照写库并通知监听者 |
 | `progress.py` | 各阶段占总进度的区间：preparing / downloading / extracting_audio / transcribing / writing_outputs / indexing |
-| `library.py` | 登记结果、编辑后另存新版本、启动时扫描工作区补索引 |
+| `library.py` | 登记结果、编辑后另存新版本、启动时扫描工作区补索引；重转写前核对来源并导入可复用旧音频 |
 | `database.py` | SQLite 表结构与查询 |
 | `web.py` | FastAPI：`/api/*`（接口见 `docs/api.md`）+ 托管 `web/dist`，非 API 路径回退到 `index.html`；没构建时返回提示页 |
 | `web/`（前端） | React SPA：新建转写 `/`、任务列表 `/tasks`、文字稿列表 `/videos`；保留任务与文字稿详情。单条提交进入任务详情，批量进入任务列表；完成后跳转文字稿并提示保存成功 |
@@ -143,7 +143,7 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 
 文字稿列表的原链接复制按钮与详情链接独立，支持悬停、键盘与触屏，反馈复制结果；本地文件不显示该操作。
 
-文字稿详情可选择其他引擎和模型重新识别：`POST /api/videos/{id}/retranscribe` 先核验并导入旧 WAV，再提交 `force_asr` 任务。新稿独立入库，原稿保留；普通新建任务继续字幕优先。
+文字稿详情可选择其他引擎和模型重新识别：`POST /api/videos/{id}/retranscribe` 由 `TaskService.submit_retranscription` 提交任务，`WorkspaceLibrary.prepare_retranscription_source` 核验来源并导入可复用旧 WAV；任务强制 ASR。新稿独立入库，原稿保留；普通新建任务继续字幕优先。
 
 模型选项统一定义在 `model_catalog.py`，CLI 配置向导复用该目录；默认模型解析按引擎隔离，显式模型名或路径优先。
 

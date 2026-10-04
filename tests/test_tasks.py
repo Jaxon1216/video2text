@@ -1,6 +1,8 @@
 from pathlib import Path
 from threading import Event
 
+import pytest
+
 from v2t.config import Settings
 from v2t.database import AppDatabase
 from v2t.library import WorkspaceLibrary
@@ -204,4 +206,42 @@ def test_retranscription_passes_force_asr_to_pipeline(tmp_path):
     task = service.submit_transcription(source="BV1xx411c7XD", provider="whisper", model="medium", force_asr=True)
     assert service.wait_for_task(task.id).status == "completed"
     assert observed == [True]
+    service.executor.shutdown()
+
+
+def test_submit_retranscription_uses_existing_video_and_forces_asr(tmp_path):
+    settings = Settings.from_workspace(tmp_path)
+    database = AppDatabase(settings)
+    library = WorkspaceLibrary(settings, database)
+    observed = []
+
+    class RecordingPipeline(FakePipeline):
+        def transcribe(self, source, *, force_asr=False, **kwargs):
+            observed.append((source, force_asr))
+            result = super().transcribe(source, **kwargs)
+            result.transcript_path = settings.transcripts_original_dir / f"demo-task-{self.model}.txt"
+            result.metadata_path = settings.metadata_dir / f"demo-task-{self.model}.json"
+            result.transcript_path.write_text(result.text + "\n", encoding="utf-8")
+            result.metadata_path.write_text("{}", encoding="utf-8")
+            return result
+
+    service = TaskService(database=database, library=library,
+                          pipeline_factory=lambda provider, model: RecordingPipeline(settings, provider, model))
+    first = service.submit_transcription(source="BV1xx411c7XD", provider="whisper", model="small")
+    original = service.wait_for_task(first.id)
+    second = service.submit_retranscription(video_id=original.video_id, provider="whisper", model="medium")
+    result = service.wait_for_task(second.id)
+    assert result.status == "completed"
+    assert result.video_id != original.video_id
+    assert observed[-1] == ("BV1xx411c7XD", True)
+    service.executor.shutdown()
+
+
+def test_submit_retranscription_rejects_missing_video_without_creating_task(tmp_path):
+    settings = Settings.from_workspace(tmp_path)
+    database = AppDatabase(settings)
+    service = TaskService(database=database, library=WorkspaceLibrary(settings, database), pipeline_factory=None)
+    with pytest.raises(KeyError, match="999"):
+        service.submit_retranscription(video_id=999, provider="whisper", model="small")
+    assert database.list_tasks() == []
     service.executor.shutdown()

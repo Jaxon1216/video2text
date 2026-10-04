@@ -51,10 +51,10 @@ src/v2t/
   evaluation.py     评测指标：CER、术语召回
   downloaders/      ytdlp.py（B站：短链解析、字幕优先）、douyin.py（抖音）
   transcribers/     faster_whisper_local.py、whisper_local.py、qwen3_asr_local.py、sensevoice_local.py、volcengine.py
-  tasks.py          线程池任务服务 + 协作式中断 + 进度回调
+  tasks.py          线程池任务服务 + 换模型重转写提交 + 协作式中断 + 进度回调
   logging_config.py 正常轮询 access log 过滤与任务日志配置
   progress.py       阶段进度（stage -> 总进度区间）
-  library.py        把结果登记进视频库、管理转写稿版本
+  library.py        把结果登记进视频库、管理转写稿版本、准备重转写来源与旧音频
   database.py       SQLite：tasks / task_progress_events / videos / transcript_versions / tags / categories
   web.py            FastAPI：/api/* + 托管 web/dist（前端路由回退到 index.html）
   user_config.py    .v2t/config.json 读写

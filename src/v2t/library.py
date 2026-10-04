@@ -5,10 +5,11 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from v2t.audio_cache import AudioCache
 from v2t.config import Settings
 from v2t.database import AppDatabase
-from v2t.inputs import safe_stem
-from v2t.models import TranscriptDocument, TranscriptResult
+from v2t.inputs import parse_source, safe_stem
+from v2t.models import REMOTE_SOURCE_KINDS, TranscriptDocument, TranscriptResult
 
 
 def sha256_text(text: str) -> str:
@@ -20,6 +21,20 @@ class WorkspaceLibrary:
         self.settings = settings
         self.database = database
         self.settings.ensure_directories()
+
+    def prepare_retranscription_source(self, video_id: int) -> str:
+        video = self.database.get_video(video_id)
+        if video is None:
+            raise KeyError(video_id)
+        source_input = str(video["source_input"])
+        source = parse_source(source_input)
+        if source.kind in REMOTE_SOURCE_KINDS and video.get("audio_path"):
+            try:
+                metadata = self.load_video_metadata(video_id)
+                AudioCache(self.settings).import_legacy(source, Path(str(video["audio_path"])), metadata)
+            except (OSError, ValueError):
+                pass
+        return source_input
 
     def register_transcript_result(self, result: TranscriptResult) -> int:
         transcript_path = self._ensure_original_transcript(result)

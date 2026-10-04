@@ -69,6 +69,14 @@ class TaskService:
             self._cancel_events[task.id] = cancel_event
         return task
 
+    def submit_retranscription(
+        self, *, video_id: int, provider: str, model: str, prompt: str = ""
+    ) -> TaskRecord:
+        source = self.library.prepare_retranscription_source(video_id)
+        return self.submit_transcription(
+            source=source, provider=provider, model=model, prompt=prompt, force_asr=True
+        )
+
     def cancel_task(self, task_id: str) -> TaskRecord:
         with self._lock:
             task = self.database.get_task(task_id)

@@ -10,7 +10,6 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel
 
-from v2t.audio_cache import AudioCache
 from v2t.database import AppDatabase
 from v2t.formatters import export_document
 from v2t.inputs import parse_source, parse_source_list, safe_stem
@@ -204,23 +203,17 @@ def create_app(
 
     @app.post("/api/videos/{video_id}/retranscribe")
     async def retranscribe_video(video_id: int, payload: RetranscribeRequest) -> JSONResponse:
-        video = database.get_video(video_id)
-        if video is None:
+        if database.get_video(video_id) is None:
             raise HTTPException(status_code=404, detail="video not found")
         provider, model = task_options(payload.provider, payload.model)
-        source_input = str(video["source_input"])
         try:
-            source = parse_source(source_input)
+            task = task_service.submit_retranscription(
+                video_id=video_id, provider=provider, model=model, prompt=payload.prompt
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="video not found") from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        if source.kind in ("bilibili", "douyin") and video.get("audio_path"):
-            try:
-                metadata = library.load_video_metadata(video_id)
-                AudioCache(library.settings).import_legacy(source, Path(str(video["audio_path"])), metadata)
-            except (OSError, ValueError):
-                pass
-        task = task_service.submit_transcription(source=source_input, provider=provider, model=model,
-                                                 prompt=payload.prompt, force_asr=True)
         return JSONResponse({"task_id": task.id, "status": task.status})
 
     @app.get("/api/videos/{video_id}")
