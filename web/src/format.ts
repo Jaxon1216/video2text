@@ -1,4 +1,4 @@
-import type { Segment, TranscriptDocument } from "./api";
+import type { ModelOption, ProviderModels, Segment, TranscriptDocument } from "./api";
 
 export const BLOCK_SECONDS = 30;
 
@@ -10,12 +10,50 @@ export const PLATFORM_LABELS: Record<string, string> = {
 };
 
 export const PROVIDER_LABELS: Record<string, string> = {
-  "faster-whisper": "faster-whisper（本地，推荐）",
-  whisper: "Whisper（本地）",
-  "qwen3-asr": "Qwen3-ASR 1.7B（本地，无时间戳）",
-  sensevoice: "SenseVoice（本地）",
-  volcengine: "火山引擎（云端）",
+  "faster-whisper": "faster-whisper",
+  whisper: "Whisper",
+  "qwen3-asr": "Qwen3-ASR",
+  sensevoice: "SenseVoice",
+  volcengine: "火山引擎",
 };
+
+const CACHE_LABELS: Record<ModelOption["cache_status"], string> = {
+  found: "文件已找到",
+  missing: "未下载",
+  incomplete: "文件不完整",
+  unknown: "无法判断",
+  not_applicable: "云端",
+};
+
+export function providerLabel(name: string): string {
+  return PROVIDER_LABELS[name] ?? name;
+}
+
+export function modelOptionLabel(provider: string, item: ModelOption): string {
+  const recommended = provider === "faster-whisper" && item.id === "large-v3-turbo" ? "（推荐）" : "";
+  const cache = item.cache_status ? ` · ${CACHE_LABELS[item.cache_status]}` : "";
+  return `${item.label}${recommended}${cache}`;
+}
+
+/** Keep a saved model only when it belongs to this engine; otherwise use that engine's default. */
+export function initialModel(group: ProviderModels | undefined, preferred: string): string {
+  if (group?.models.some(item => item.id === preferred)) return preferred;
+  return group?.default_model ?? preferred;
+}
+
+export function engineNotes(group: ProviderModels | undefined, model: ModelOption | undefined): { text: string; tone: "muted" | "notice" }[] {
+  if (!group) return [];
+  const notes: { text: string; tone: "muted" | "notice" }[] = [];
+  if (group.provider === "qwen3-asr") notes.push({ text: "本地模型，结果没有时间戳。", tone: "muted" });
+  if (!group.enabled) notes.push({ text: "这个引擎尚未在配置里启用。", tone: "muted" });
+  if (group.dependency_installed === false) notes.push({ text: "引擎依赖未安装，可运行 video2text bootstrap 配置。", tone: "notice" });
+  notes.push({
+    text: group.provider === "volcengine" ? "云端模型无需本地文件。" : "扫描只检查文件，实际识别时才加载模型。",
+    tone: "muted",
+  });
+  if (model?.cache_message) notes.push({ text: model.cache_message, tone: "muted" });
+  return notes;
+}
 
 const STAGE_LABELS: Record<string, string> = {
   queued: "排队中",

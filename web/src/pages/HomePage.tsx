@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { getConfig, getModels, submitSources, type AppConfig, type ProviderModels } from "../api";
-import { PROVIDER_LABELS } from "../format";
+import { EngineSelects } from "../components/EngineSelects";
+import { initialModel, providerLabel } from "../format";
 import { navigate } from "../router";
-
-const CACHE_LABELS = { found: "文件已找到", missing: "未下载", incomplete: "文件不完整", unknown: "无法判断", not_applicable: "云端" };
 
 export function HomePage() {
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -31,14 +30,13 @@ export function HomePage() {
         setConfig(loaded);
         setCatalog(models.items);
         setProvider(loaded.default_provider);
-        setModel(loaded.default_model);
+        setModel(initialModel(models.items.find(item => item.provider === loaded.default_provider), loaded.default_model));
         setError(null);
       })
       .catch((err: Error) => { if (!cancelled) setError(`无法加载识别配置：${err.message}`); });
     return () => { cancelled = true; };
   }, [reload]);
 
-  const providers = config?.providers ?? [];
   const group = catalog.find(item => item.provider === provider);
   const models = group?.models ?? [];
   const selectedModel = models.find(item => item.id === model);
@@ -102,7 +100,7 @@ export function HomePage() {
             {showOptions ? "收起选项" : "识别选项"}
             <span className="muted">
               {" "}
-              · {provider || "…"} {model}
+              · {provider ? providerLabel(provider) : "…"} {selectedModel?.label || model}
             </span>
           </button>
           <button type="submit" className="primary" disabled={submitting || !canSubmit}>
@@ -112,35 +110,13 @@ export function HomePage() {
         </div>
         {showOptions && (
           <div className="options">
-            <label>
-              <span>识别引擎</span>
-              <select value={provider} onChange={(event) => {
-                const selected = event.target.value;
-                setProvider(selected);
-                setModel(catalog.find(item => item.provider === selected)?.default_model ?? "");
-              }}>
-                {providers.map((name) => (
-                  <option key={name} value={name}>
-                    {PROVIDER_LABELS[name] ?? name}
-                    {config?.enabled_providers.includes(name) ? "" : "（未配置）"}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>模型</span>
-              <select value={model} onChange={(event) => setModel(event.target.value)} disabled={models.length === 0}>
-                {models.length === 0 && <option value="">尚未配置模型</option>}
-                {models.map(item => <option key={item.id} value={item.id}>{item.label}{provider === "faster-whisper" && item.id === "large-v3-turbo" ? "（推荐）" : ""}{item.cache_status ? ` · ${CACHE_LABELS[item.cache_status]}` : ""}</option>)}
-              </select>
-            </label>
-            <div className="wide model-status">
+            <EngineSelects catalog={catalog} provider={provider} model={model} onChange={(nextProvider, nextModel) => {
+              setProvider(nextProvider);
+              setModel(nextModel);
+            }}>
               <button type="button" className="link-button" disabled={refreshing} onClick={refreshModels}>{refreshing ? "正在扫描本地文件…" : "刷新本地模型状态"}</button>
-              <p className="muted">{provider === "volcengine" ? "云端模型无需本地文件。" : "扫描只检查文件，实际识别时才加载模型。"}</p>
-              {selectedModel?.cache_message && <p className="muted">{selectedModel.cache_message}</p>}
-              {group?.dependency_installed === false && <p className="notice">引擎依赖未安装，可运行 video2text bootstrap 配置。</p>}
               {refreshError && <p className="error" role="status">{refreshError}</p>}
-            </div>
+            </EngineSelects>
             <label className="wide">
               <span>术语提示（可选）</span>
               <input

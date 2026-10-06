@@ -1,9 +1,9 @@
+import { EngineSelects } from "../components/EngineSelects";
 import { ExportDialog } from "../components/ExportDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getConfig, getDocument, getModels, retranscribeVideo, type ExportFormat, type ProviderModels, type TranscriptDocument } from "../api";
 import {
   PLATFORM_LABELS,
-  PROVIDER_LABELS,
   buildCopyForAI,
   copyText,
   formatDuration,
@@ -154,12 +154,10 @@ export function VideoPage({ videoId }: { videoId: number }) {
       {retranscribeError && <p className="error" role="status">{retranscribeError}</p>}
       {showRetranscribe && (
         <section className="options" aria-label="换模型重转写选项">
-          <label><span>识别引擎</span><select value={provider} onChange={event => {
-            const selected = event.target.value;
-            setProvider(selected);
-            setModel(catalog.find(item => item.provider === selected)?.default_model ?? "");
-          }}>{catalog.map(item => <option key={item.provider} value={item.provider}>{PROVIDER_LABELS[item.provider] ?? item.provider}{item.enabled ? "" : "（未配置）"}</option>)}</select></label>
-          <label><span>模型</span><select value={model} onChange={event => setModel(event.target.value)}>{(catalog.find(item => item.provider === provider)?.models ?? []).map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+          <EngineSelects catalog={catalog} provider={provider} model={model} onChange={(nextProvider, nextModel) => {
+            setProvider(nextProvider);
+            setModel(nextModel);
+          }} />
           <label className="wide"><span>术语提示</span><input value={prompt} onChange={event => setPrompt(event.target.value)} placeholder="可选：视频里的专业词" /></label>
           <p className="muted wide">这次会用所选模型重新识别。已有完整音频时直接复用，否则需要重新下载；新文字稿会单独保存。</p>
           <div className="wide"><button className="primary" disabled={!model || retranscribing} onClick={startRetranscribe}>{retranscribing ? "提交中…" : "开始重转写"}</button></div>
