@@ -10,6 +10,7 @@ from v2t.config import Settings
 from v2t.downloaders.base import Downloader
 from v2t.inputs import is_bilibili_short_url, parse_source
 from v2t.models import DownloadResult, SourceRef, SubtitleResult
+from v2t.progress import ProgressReporter
 from v2t.segments import Segment, parse_bilibili_json, parse_srt
 
 # Human-made subtitles first, then Bilibili's AI subtitles; danmaku (bullet comments) is never a transcript.
@@ -39,23 +40,7 @@ class YtDlpDownloader(Downloader):
         YoutubeDL = _import_youtube_dl()
 
         ydl_opts = self._build_ydl_opts(source, settings)
-        if progress is not None:
-            def progress_hook(data: dict[str, Any]) -> None:
-                status = data.get("status")
-                if status == "downloading":
-                    total = data.get("total_bytes") or data.get("total_bytes_estimate") or 0
-                    downloaded = data.get("downloaded_bytes") or 0
-                    stage_progress = (downloaded / total) if total else None
-                    progress.running(
-                        "downloading",
-                        message="downloading",
-                        stage_progress=stage_progress,
-                        indeterminate=stage_progress is None,
-                    )
-                elif status == "finished":
-                    progress.running("downloading", message="download_finished", stage_progress=1.0)
-            ydl_opts["progress_hooks"] = [progress_hook]
-            ydl_opts["noprogress"] = False
+        add_download_progress(ydl_opts, progress)
 
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(_source_url(source), download=True)
@@ -130,35 +115,11 @@ class YtDlpDownloader(Downloader):
 
     def _build_ydl_opts(self, source: SourceRef, settings: Settings) -> dict[str, Any]:
         ydl_opts: dict[str, Any] = {
+            **build_ydl_options(settings, bypass_proxy=True),
             "format": "bv*+ba/b",
             "merge_output_format": "mp4",
-            "noplaylist": True,
             "outtmpl": str(settings.downloads_dir / "%(id)s.%(ext)s"),
-            "noprogress": True,
-            "quiet": True,
-            "no_warnings": True,
         }
-
-        # Cookies unlock subtitles and avoid some 412s.
-        # Priority: V2T_COOKIE_FILE > cookies.txt in workspace > V2T_COOKIES_FROM_BROWSER.
-        cookie_file = os.getenv("V2T_COOKIE_FILE")
-        if cookie_file:
-            cookie_path = Path(cookie_file).expanduser()
-        else:
-            cookie_path = settings.workspace_root / "cookies.txt"
-        if cookie_path.exists():
-            ydl_opts["cookiefile"] = str(cookie_path)
-        else:
-            browser = os.getenv("V2T_COOKIES_FROM_BROWSER", "").strip()
-            if browser:
-                ydl_opts["cookiesfrombrowser"] = (browser,)
-
-        # Bilibili's CDN frequently blocks proxy/VPN nodes, causing 412
-        # or SSL errors. Direct connections usually work better.
-        # Set V2T_USE_PROXY=1 to re-enable the system proxy if needed.
-        use_proxy = os.getenv("V2T_USE_PROXY", "").strip().lower() in {"1", "true", "yes", "on"}
-        if not use_proxy:
-            ydl_opts["proxy"] = ""
 
         if source.page is not None:
             ydl_opts["playlist_items"] = str(source.page)
@@ -167,21 +128,52 @@ class YtDlpDownloader(Downloader):
         return ydl_opts
 
     def _resolve_video_path(self, ydl: Any, info: dict[str, Any]) -> Path:
-        requested_downloads = info.get("requested_downloads") or []
-        for requested in requested_downloads:
-            filepath = requested.get("filepath")
-            if filepath:
-                return Path(filepath)
+        return resolve_media_path(ydl, info)
 
-        prepared = Path(ydl.prepare_filename(info))
-        if prepared.exists():
-            return prepared
 
-        merged_mp4 = prepared.with_suffix(".mp4")
-        if merged_mp4.exists():
-            return merged_mp4
+def build_ydl_options(settings: Settings, *, bypass_proxy: bool = False) -> dict[str, Any]:
+    """Shared Cookie handling; only Bilibili bypasses system proxies by default."""
+    options: dict[str, Any] = {"noplaylist": True, "noprogress": True, "quiet": True, "no_warnings": True}
+    cookie_file = os.getenv("V2T_COOKIE_FILE")
+    cookie_path = Path(cookie_file).expanduser() if cookie_file else settings.workspace_root / "cookies.txt"
+    if cookie_path.exists():
+        options["cookiefile"] = str(cookie_path)
+    else:
+        browser = os.getenv("V2T_COOKIES_FROM_BROWSER", "").strip()
+        if browser:
+            options["cookiesfrombrowser"] = (browser,)
+    use_proxy = os.getenv("V2T_USE_PROXY", "").strip().lower() in {"1", "true", "yes", "on"}
+    if bypass_proxy and not use_proxy:
+        options["proxy"] = ""
+    return options
 
+
+def add_download_progress(options: dict[str, Any], progress: ProgressReporter | None) -> None:
+    if progress is None:
+        return
+
+    def hook(data: dict[str, Any]) -> None:
+        progress.check_cancelled()
+        if data.get("status") == "downloading":
+            total = data.get("total_bytes") or data.get("total_bytes_estimate") or 0
+            downloaded = data.get("downloaded_bytes") or 0
+            progress.running("downloading", message="downloading",
+                             stage_progress=downloaded / total if total else None, indeterminate=not total)
+        elif data.get("status") == "finished":
+            progress.running("downloading", message="download_finished", stage_progress=1.0)
+    options["progress_hooks"] = [hook]
+    options["noprogress"] = False
+
+
+def resolve_media_path(ydl: Any, info: dict[str, Any]) -> Path:
+    for requested in info.get("requested_downloads") or []:
+        if requested.get("filepath"):
+            return Path(requested["filepath"])
+    prepared = Path(ydl.prepare_filename(info))
+    if prepared.exists():
         return prepared
+    merged_mp4 = prepared.with_suffix(".mp4")
+    return merged_mp4 if merged_mp4.exists() else prepared
 
 
 def pick_subtitle(subtitles: dict[str, list[dict[str, Any]]]) -> tuple[str, dict[str, Any]] | None:

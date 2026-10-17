@@ -180,7 +180,7 @@ export function VideoPage({ videoId }: { videoId: number }) {
             return (
               <section key={block.start} className="passage" style={{ animationDelay: `${Math.min(index, 16) * 25}ms` }}>
                 {link ? (
-                  <a className="stamp" href={link} target="_blank" rel="noreferrer" title="在 B站 从这里播放">
+                  <a className="stamp" href={link} target="_blank" rel="noreferrer" title={`在 ${PLATFORM_LABELS[document.platform] ?? document.platform} 从这里播放`}>
                     {stamp}
                   </a>
                 ) : (

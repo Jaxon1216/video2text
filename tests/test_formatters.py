@@ -87,6 +87,13 @@ def test_export_markdown_contains_info_and_timestamps() -> None:
     assert "**[00:35]** 第三句" in content
 
 
+def test_youtube_markdown_uses_display_platform_name() -> None:
+    document = make_document(platform="youtube", url="https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    content = export_document(document, "md").content
+    assert "- 平台：YouTube" in content
+    assert document.url in content
+
+
 def test_export_srt_uses_raw_segments() -> None:
     content = export_document(make_document(), "srt").content
     assert content.startswith("1\n00:00:00,000 --> 00:00:04,000\n第一句\n\n2\n")

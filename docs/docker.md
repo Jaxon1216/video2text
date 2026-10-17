@@ -24,7 +24,7 @@ docker compose up -d --build
 | `V2T_DEFAULT_PROVIDER` | 空 | 不覆盖已保存的引擎；新配置使用 faster-whisper |
 | `V2T_DEFAULT_MODEL` | 空 | 不覆盖已保存的模型；新配置使用 large-v3-turbo，可显式指定其他档位 |
 | `V2T_VOLCENGINE_API_KEY` | 空 | 火山引擎 API Key，填了之后 Web 里可以选火山引擎 |
-| `V2T_PREFER_SUBTITLES` | `1` | 是否优先用 B站字幕 |
+| `V2T_PREFER_SUBTITLES` | `1` | 是否优先用 B站 / YouTube 字幕 |
 
 环境变量只在运行时生效，不会写回 `data/config.json`。其他配置（如 faster-whisper 的 beam_size）直接改 `data/config.json`。
 

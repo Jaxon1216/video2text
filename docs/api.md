@@ -83,7 +83,11 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
 
 `provider`、`model` 均可省略或为 null。省略引擎使用运行配置；省略模型时，同引擎使用配置默认值，换引擎则使用其独立默认值（Whisper small、SenseVoice 配置目录、火山配置模型、faster-whisper large-v3-turbo、Qwen3-ASR 1.7B）。除 Qwen3-ASR 当前仅允许 `Qwen/Qwen3-ASR-1.7B` 外，显式模型名/路径优先且保留自定义能力。未知引擎或其他 Qwen 模型返回 400。批量接口使用同一规则。
 
-提交前会先校验输入能否识别（B站 / 抖音 / 本地文件），不能识别时返回 400：`{"detail": "无法识别的输入：..."}`。
+提交前会先校验输入能否识别（B站 / 抖音 / YouTube / 本地文件），不能识别时返回 400：`{"detail": "无法识别的输入：..."}`。
+
+YouTube 可直接传 `source: "https://youtu.be/dQw4w9WgXcQ"`，也支持 watch、shorts、live 录播、embed；视频 ID 必须为 11 位。纯播放列表/频道链接返回 400；附带播放列表参数的单视频只处理该视频。链接规范化为 `https://www.youtube.com/watch?v={id}`，忽略起播时间并转写完整视频。
+
+完成后 `source_kind` / document 的 `platform` 为 `youtube`；字幕路径 `engine=subtitle`、`model=实际语言代码`、`transcript_source=subtitle`，时间戳可导出 SRT。metadata JSON 的 `download` 还包含 `is_generated` 与 `subtitle_language`。字幕标题/作者通过 oEmbed 尽力获取，失败时标题为 `youtube-{id}`、作者为空；字幕路径时长未知，保持 null。无字幕或字幕请求失败时自动回退 ASR；正在直播/预约/录播尚未处理完成时任务失败并说明原因。重转写接口同样支持 YouTube，强制 ASR 并复用完整 WAV 缓存。
 
 ### 2. 批量创建转写任务
 

@@ -2,6 +2,12 @@
 
 按分阶段提交记录。`v0.1.0` 打在 Web 界面那一次提交上。
 
+## 未发布
+
+- YouTube MVP：支持 watch、youtu.be、Shorts、live 录播和 embed；人工/自动字幕优先，失败回退纯音频下载与现有 ASR，复用缓存、导出和换模型重转写。
+- CLI / Web 增加 YouTube 提示、平台标识、原链接复制和时间戳跳转；基础依赖包含 youtube-transcript-api 与 yt-dlp EJS / Deno。
+- 新增离线 mock 单元、集成及浏览器回归；当前环境连接 YouTube 超时，真实视频端到端验收待网络可用后补充。
+
 ## 0.2.0（2026-09-29）
 
 完成基础流程优化与模型管理。默认工作区继续使用现有引擎和模型配置；新配置使用 faster-whisper `large-v3-turbo`。

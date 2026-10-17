@@ -15,7 +15,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from v2t.config import Settings
 from v2t.inputs import extract_first_url, parse_source
-from v2t.models import SourceRef
+from v2t.models import REMOTE_SOURCE_KINDS, SourceRef
 
 
 _LOCKS: dict[str, threading.Lock] = {}
@@ -25,7 +25,7 @@ _LOCKS_GUARD = threading.Lock()
 def _source_key(source: SourceRef, video_id: str | None = None) -> str | None:
     identifier = source.bv if source.kind == "bilibili" else source.video_id
     identifier = identifier or video_id
-    if not identifier or source.kind not in ("bilibili", "douyin"):
+    if not identifier or source.kind not in REMOTE_SOURCE_KINDS:
         return None
     page = source.page or 1 if source.kind == "bilibili" else 0
     return f"{source.kind}:{identifier}:p{page}"
@@ -159,7 +159,7 @@ class AudioCache:
                     return None
             except (ValueError, TypeError):
                 return None
-        elif source.kind == "douyin":
+        elif source.kind in {"douyin", "youtube"}:
             if source.video_id:
                 if str(download.get("id")) != source.video_id:
                     return None

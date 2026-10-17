@@ -6,6 +6,7 @@
 - [uv](https://docs.astral.sh/uv/)；本机 `uv` 装在 pyenv 3.11.15 下，执行前先 `source ~/.zshrc`
 - ffmpeg / ffprobe 在 PATH 中
 - 抖音解析需要本机 Chrome，或 `uv run playwright install chromium`
+- YouTube 基础依赖含 youtube-transcript-api、yt-dlp EJS 与 Deno，由 `uv sync` 安装；真实测试需要网络能访问 YouTube，自动化用 mock（见 `platforms/youtube.md`）。
 
 ```bash
 uv sync --extra faster-whisper --extra web --extra douyin                 # 常用组合

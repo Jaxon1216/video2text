@@ -21,8 +21,8 @@ flowchart LR
 
 ## 一次转写的数据流
 
-1. `inputs.parse_source(raw)` 把输入解析为 `SourceRef(kind=bilibili|douyin|video|audio, ...)`。
-2. 远程来源（bilibili / douyin）交给 `factory` 按 `kind` 选出的 Downloader。若 `prefer_subtitles`（默认开）先调用 `fetch_subtitles`：拿到平台字幕就跳过下载和 ASR（`transcript_source=subtitle`）。强制 ASR 或无字幕时，先查按平台视频 ID（B站还按分 P）区分的完整 WAV 缓存；未命中才下载媒体。
+1. `inputs.parse_source(raw)` 把输入解析为 `SourceRef(kind=bilibili|douyin|youtube|video|audio, ...)`。
+2. 远程来源（bilibili / douyin / youtube）交给 `factory` 按 `kind` 选出的 Downloader。若 `prefer_subtitles`（默认开）先调用 `fetch_subtitles`：拿到平台字幕就跳过下载和 ASR（`transcript_source=subtitle`）。强制 ASR 或无字幕时，先查按平台视频 ID（B站还按分 P）区分的完整 WAV 缓存；未命中才下载媒体。
 3. `pipeline._extract_audio` 用 ffmpeg 转成 16kHz 单声道 wav（本地音频文件跳过这一步）；完整 WAV 通过格式校验后原子写入缓存。不同任务的临时音频名互不冲突。
 4. `Transcriber.transcribe(audio_path, prompt, progress)` 返回 `{"text", "segments", "language", "model", ...}`，其中 `segments` 已归一化为 `[{start, end, text}]`（秒，见 `segments.py`）。Qwen3-ASR 1.7B 每 60 秒音频调用一次官方接口，术语提示走 `context`，单段生成上限 2048 token，返回空 `segments`；每段调用结束后检查取消。
 5. pipeline 写出带时间和随机后缀的独立 `transcripts/original/*.txt`（纯文本）和同名 `metadata/*.json`（来源、下载信息、`transcript_source`、`segments`）。
@@ -31,9 +31,9 @@ flowchart LR
 
 ## 远程媒体怎么拿到
 
-`pipeline.py` 先调用 `inputs.py` 的 `parse_source`。这一步只在本机看文本：有 `BV` 或 `bilibili.com` / `b23.tv` 就是 B站，有 `douyin.com` 就是抖音，本机已有的音视频文件则不下载。短链是两个 App「复制链接」时自己发的短地址，方便塞进微信和短信；短地址里通常没有 BV 号或视频数字 ID，所以解析阶段只能认出平台，展开留给对应下载器。
+`pipeline.py` 先调用 `inputs.py` 的 `parse_source`。这一步只在本机看文本：有 `BV` 或 `bilibili.com` / `b23.tv` 就是 B站，有 `douyin.com` 就是抖音，YouTube 的 watch / youtu.be / shorts / live 录播 / embed 由域名和 11 位 ID 识别并统一成 watch URL；本机已有的音视频文件则不下载。短链是两个 App「复制链接」时自己发的短地址，方便塞进微信和短信；短地址里通常没有 BV 号或视频数字 ID，所以解析阶段只能认出平台，展开留给对应下载器。
 
-远程来源再由 `factory.py` 按 `source.kind` 选下载器。两边最后都是 HTTP，差别是这条请求能不能由本仓库自己拼出来。B站可以。抖音的详情请求必须由抖音网页里的脚本签名，终端里直接 curl 过不了人机校验，也带不上签名。配置和报错表在 `docs/platforms/`，取舍在 `docs/decisions.md` 的 D2。
+远程来源再由 `factory.py` 按 `source.kind` 选下载器。各平台最后都是 HTTP，B站和抖音的差别是这条请求能不能由本仓库自己拼出来。B站可以。抖音的详情请求必须由抖音网页里的脚本签名，终端里直接 curl 过不了人机校验，也带不上签名。配置和报错表在 `docs/platforms/`，取舍在 `docs/decisions.md` 的 D2。
 
 识别只用音频。WAV 是 16kHz、单声道的声音文件，没有画面。有字幕时连媒体都不下。
 
@@ -62,20 +62,26 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 
 纯 HTTP 打不开这条路：curl 短链得到的是校验页；不带页面算出的签名去打详情接口，会得到空 body 或被拒绝。空 body 也可以是 HTTP 200，常见原因是 UA 和真实系统不一致（`default_user_agent()` 按 macOS / Windows / Linux 分开写）。浏览器用户目录是 `<工作区>/browser`，同一时间只能开一个，解析会排队。超时多半停在校验页，`V2T_DOUYIN_HEADLESS=0` 可以看到窗口里的页面。
 
+### 例：YouTube 单视频
+
+`inputs.py` 把 watch、youtu.be、Shorts、live 录播、embed 统一为 watch URL。`factory.py` 选出 `YouTubeDownloader`；字幕调用 `youtube-transcript-api`，人工中文、人工英文、自动中文、自动英文、其他原始语言依次选择，不做自动翻译。片段用 `start + duration` 转为结束时间，交给 `normalize_segments`。标题/作者用短超时 oEmbed 尽力补齐，失败仍保存字幕，时长保持未知。字幕元数据记录实际语言和 `is_generated`。
+
+无有效字幕、字幕失败或强制 ASR 时，既有 Pipeline 先查按 YouTube 视频 ID 缓存的 WAV，再按需调用 yt-dlp；先检查直播状态，只接受完整视频，再下载 `bestaudio/best`。基础依赖含 yt-dlp EJS 和 Deno，uv 同步后本机与 Docker 均可调用 JS 运行时。YouTube 默认沿用系统代理；Cookie 只用于 yt-dlp 音频路径。未完成直播、频道与纯播放列表不在 MVP 范围，详情和真实验收状态见 `platforms/youtube.md`。Pipeline 不包含 YouTube 平台特判。
+
 ### 汇合点
 
-有字幕时，管道只有文字和分段，没有媒体文件。没有字幕时，两条路径都留下一个本地媒体文件（B站通常是带画面的 mp4，抖音通常是纯音频）和标题、作者、时长、原页面地址，再变成同一份 WAV 交给转写器。平台差异停在工厂选出的下载器里。前端不读磁盘：任务完成后 API 读 txt 和 metadata JSON，把分段返回给页面。
+有字幕时，管道只有文字和分段，没有媒体文件。没有字幕时，各平台都留下一个本地媒体文件（B站通常是带画面的 mp4，抖音和 YouTube 优先纯音频）和标题、作者、时长、原页面地址，再变成同一份 WAV 交给转写器。平台差异停在工厂选出的下载器里。前端不读磁盘：任务完成后 API 读 txt 和 metadata JSON，把分段返回给页面。
 
 ## 模块职责
 
 | 模块 | 职责 |
 | --- | --- |
-| `inputs.py` | 输入识别：本地文件后缀、B站 BV / 链接、抖音分享文本与链接 |
+| `inputs.py` | 输入识别：本地文件后缀、B站 BV / 链接、抖音分享文本与链接、YouTube 单视频链接 |
 | `audio_cache.py` | 远程音频缓存：来源匹配、WAV 校验、原子发布、旧文字稿音频导入 |
 | `models.py` | 纯数据类，无业务逻辑；`TranscriptDocument` 是导出和以后 AI 功能的统一输入 |
 | `segments.py` | segment 结构与各引擎输出的归一化 |
 | `formatters.py` | 纯函数：时间戳格式化、按 30 秒合并段落、txt / md / srt 渲染 |
-| `downloaders/` | `Downloader.download(...) -> DownloadResult`；可选 `fetch_subtitles(...) -> SubtitleResult \| None`（B站实现，抖音返回 None） |
+| `downloaders/` | `Downloader.download(...) -> DownloadResult`；可选 `fetch_subtitles(...) -> SubtitleResult \| None`（B站与 YouTube 实现，抖音返回 None）；ytdlp.py 共享 Cookie/进度/文件路径逻辑 |
 | `transcribers/` | `Transcriber.transcribe(audio_path, prompt, progress) -> dict` |
 | `factory.py` | 组装 pipeline：provider -> Transcriber（按 provider + model + 配置缓存，模型只加载一次），kind -> Downloader |
 | `pipeline.py` | 唯一的流程编排处 |
@@ -125,7 +131,7 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 | --- | --- |
 | `V2T_HOME` | 工作区目录 |
 | `V2T_LANG` | 界面语言 |
-| `V2T_COOKIE_FILE` | B站 cookies.txt 路径（默认 `<工作区>/cookies.txt`） |
+| `V2T_COOKIE_FILE` | B站 / YouTube yt-dlp cookies.txt 路径（默认 `<工作区>/cookies.txt`，不传给 YouTube 字幕库） |
 | `V2T_USE_PROXY` | B站下载是否走系统代理（默认直连） |
 | `V2T_DEFAULT_PROVIDER` / `V2T_DEFAULT_MODEL` / `V2T_VOLCENGINE_API_KEY` / `V2T_PREFER_SUBTITLES` | 运行时覆盖 `config.json`（不写回文件），主要给 Docker 用 |
 | `V2T_WEB_DIST` | 前端构建产物目录（默认仓库里的 `web/dist`） |

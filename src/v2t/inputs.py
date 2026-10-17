@@ -12,6 +12,8 @@ BV_PATTERN = re.compile(r"(BV[0-9A-Za-z]{10})")
 URL_PATTERN = re.compile(r"https?://[^\s\u3000-\u303f\uff00-\uffef\"'<>]+")
 DOUYIN_HOST_SUFFIXES = ("douyin.com", "iesdouyin.com")
 BILIBILI_SHORT_HOSTS = ("b23.tv", "bili2233.cn")
+YOUTUBE_HOSTS = frozenset({"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be", "www.youtu.be"})
+YOUTUBE_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{11}")
 DOUYIN_ID_PATTERNS = (
     re.compile(r"/(?:share/)?(?:video|note|slides)/(\d{8,})"),
     re.compile(r"[?&](?:modal_id|aweme_id|vid)=(\d{8,})"),
@@ -45,6 +47,22 @@ def parse_source(raw_input: str) -> SourceRef:
         raise ValueError(f"unsupported local file type: {candidate_path.suffix}")
 
     extracted_url = extract_first_url(value)
+    if extracted_url and urlparse(extracted_url).hostname in YOUTUBE_HOSTS:
+        parsed = urlparse(extracted_url)
+        parts = parsed.path.strip("/").split("/")
+        video_id = None
+        if parsed.hostname in {"youtu.be", "www.youtu.be"} and len(parts) == 1:
+            video_id = parts[0]
+        elif parsed.path.rstrip("/") == "/watch":
+            video_id = (parse_qs(parsed.query).get("v") or [None])[0]
+        elif len(parts) == 2 and parts[0] in {"shorts", "live", "embed"}:
+            video_id = parts[1]
+        if not video_id or not YOUTUBE_ID_PATTERN.fullmatch(video_id):
+            raise ValueError("请输入有效的 YouTube 单视频链接（watch / youtu.be / shorts / live）；暂不支持播放列表或频道。")
+        return SourceRef(
+            raw_input=value, kind="youtube", display_name=f"youtube-{video_id}",
+            url=f"https://www.youtube.com/watch?v={video_id}", video_id=video_id,
+        )
     if extracted_url and _is_douyin_url(extracted_url):
         video_id = extract_douyin_video_id(extracted_url)
         return SourceRef(
@@ -74,7 +92,7 @@ def parse_source(raw_input: str) -> SourceRef:
         )
 
     raise ValueError(
-        "source must be a BV id, a Bilibili URL, a Douyin share link, or an existing local audio/video file"
+        "source must be a BV id, a Bilibili/YouTube URL, a Douyin share link, or an existing local audio/video file"
     )
 
 

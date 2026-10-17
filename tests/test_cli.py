@@ -13,6 +13,7 @@ def test_cli_help_renders() -> None:
     assert "bootstrap" in result.stdout
     assert "batch" in result.stdout
     assert "transcribe" in result.stdout
+    assert "YouTube" in result.stdout
     assert "window" not in result.stdout
     # aliases are now hidden, but mentioned in help text parenthetically
     assert "tx" in result.stdout

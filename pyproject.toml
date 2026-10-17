@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "video2text"
 version = "0.2.0"
-description = "Turn Bilibili / Douyin videos into timestamped transcripts ready for AI."
+description = "Turn Bilibili / Douyin / YouTube videos into timestamped transcripts ready for AI."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 license = { text = "MIT" }
@@ -15,7 +15,9 @@ dependencies = [
   "rich>=13.9.4",
   "tqdm>=4.67.3",
   "typer>=0.12.5",
-  "yt-dlp>=2026.8.19",
+  "yt-dlp[default,deno]>=2026.8.19",
+  "youtube-transcript-api>=1.2.4,<2",
+  "requests>=2.32.3",
 ]
 
 [project.optional-dependencies]

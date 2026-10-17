@@ -6,7 +6,7 @@ from pathlib import Path
 
 from v2t.config import Settings
 from v2t.model_catalog import resolve_model
-from v2t.downloaders import Downloader, DouyinDownloader, YtDlpDownloader
+from v2t.downloaders import Downloader, DouyinDownloader, YtDlpDownloader, YouTubeDownloader
 from v2t.pipeline import V2TPipeline
 from v2t.transcribers import LocalWhisperTranscriber
 from v2t.transcribers.base import Transcriber
@@ -96,6 +96,7 @@ def build_downloaders() -> dict[str, Downloader]:
     return {
         "bilibili": YtDlpDownloader(),
         "douyin": DouyinDownloader(),
+        "youtube": YouTubeDownloader(),
     }
 
 

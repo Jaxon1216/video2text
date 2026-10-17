@@ -91,7 +91,7 @@ export function HomePage() {
           value={source}
           onChange={(event) => setSource(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={"B站 / 抖音链接，或 App 里复制的整段分享文本\n多条链接可以一行一个"}
+          placeholder={"B站 / 抖音 / YouTube 链接，或 App 里复制的整段分享文本\n多条链接可以一行一个"}
           rows={4}
           autoFocus
         />

@@ -7,7 +7,7 @@ from v2t.segments import Segment, join_text
 
 DEFAULT_BLOCK_SECONDS = 30.0
 EXPORT_FORMATS = ("txt", "plain", "md", "srt")
-PLATFORM_LABELS = {"bilibili": "B站", "douyin": "抖音", "video": "本地视频", "audio": "本地音频"}
+PLATFORM_LABELS = {"bilibili": "B站", "douyin": "抖音", "youtube": "YouTube", "video": "本地视频", "audio": "本地音频"}
 
 @dataclass(slots=True)
 class ExportResult:

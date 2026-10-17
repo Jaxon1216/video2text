@@ -5,6 +5,8 @@ All API traffic is mocked; no video download or ASR is performed.
 from __future__ import annotations
 
 import os
+import re
+from datetime import datetime
 
 import pytest
 
@@ -99,6 +101,31 @@ def test_completion_navigation(page):
     expect(page.get_by_text("转写完成，文字稿已保存。")).to_be_visible()
 
 
+def test_youtube_submission_platform_copy_and_timestamp_link(page):
+    from playwright.sync_api import expect
+
+    youtube_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    submitted = []
+    page.route("**/api/tasks/transcribe", lambda route: (submitted.append(route.request.post_data_json),
+                                                        route.fulfill(json={"task_id": "demo"})))
+    page.add_init_script("Object.defineProperty(navigator, 'clipboard', {value: {writeText: async text => {window.copied = text}}})")
+    page.goto(URL)
+    expect(page.get_by_label("粘贴链接")).to_have_attribute("placeholder", re.compile("YouTube"))
+    page.get_by_label("粘贴链接").fill(youtube_url)
+    page.get_by_role("button", name="转成文字").click()
+    expect(page).to_have_url(f"{URL}/tasks/demo")
+    assert submitted[0]["source"] == youtube_url
+    page.route("**/api/videos", lambda route: route.fulfill(json={"items": [{**VIDEO, "source_kind": "youtube", "source_url": youtube_url}]}))
+    page.goto(f"{URL}/videos")
+    expect(page.get_by_text("YouTube", exact=True)).to_be_visible()
+    page.get_by_role("button", name="复制线程池笔记的原视频链接").click(force=True)
+    assert page.evaluate("window.copied") == youtube_url
+    page.route("**/api/videos/1/document", lambda route: route.fulfill(json={**DOCUMENT, "platform": "youtube", "url": youtube_url}))
+    page.goto(f"{URL}/videos/1")
+    expect(page.locator("a.stamp")).to_have_attribute("href", f"{youtube_url}&t=0")
+    expect(page.locator("a.stamp")).to_have_attribute("title", "在 YouTube 从这里播放")
+
+
 def test_task_polling_recovers_without_losing_progress(page):
     from playwright.sync_api import expect
 
@@ -147,7 +174,8 @@ def test_cancel_running_task_from_detail(page):
 def test_cancel_queued_task_from_list_without_navigation(page):
     from playwright.sync_api import expect
 
-    queued = {**TASK, "status": "queued", "current_stage": "queued", "id": "queued"}
+    queued = {**TASK, "status": "queued", "current_stage": "queued", "id": "queued",
+              "created_at": datetime.now().isoformat()}
     page.route("**/api/tasks", lambda route: route.fulfill(json={"items": [queued]}))
     page.route("**/api/tasks/queued/cancel", lambda route: route.fulfill(json={**queued, "status": "cancelled", "cancel_requested": True}))
     page.goto(f"{URL}/tasks")

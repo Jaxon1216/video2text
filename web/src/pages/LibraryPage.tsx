@@ -55,7 +55,7 @@ export function LibraryPage() {
                     <span>{video.engine}</span>
                   </span>
                 </Link>
-                {video.source_url && ["bilibili", "douyin"].includes(video.source_kind) && (
+                {video.source_url && ["bilibili", "douyin", "youtube"].includes(video.source_kind) && (
                   <button className="chip source-copy" aria-label={`复制${video.title}的原视频链接`} onClick={() => copyLink(video.source_url!)}>复制链接</button>
                 )}
               </li>

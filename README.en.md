@@ -2,7 +2,7 @@
 
 [中文](README.md) · [Changelog](CHANGELOG.md)
 
-Turn **Bilibili / Douyin** video links into **timestamped transcripts** you can paste straight into ChatGPT / Claude to summarize, explain, or ask follow-up questions about a specific part.
+Turn **Bilibili / Douyin / YouTube** video links into **timestamped transcripts** you can paste straight into ChatGPT / Claude to summarize, explain, or ask follow-up questions about a specific part.
 
 ```text
 copy a video link (or the whole share text) → paste → wait → transcript → Copy for AI
@@ -16,6 +16,7 @@ A personal project built on top of [bili2text](https://github.com/lanbinleo/bili
 | --- | --- | --- |
 | Bilibili | BV id, video URL, app share text | yt-dlp |
 | Douyin | app share text, `v.douyin.com` short link, video URL | Playwright page capture (no login) |
+| YouTube | watch, youtu.be, Shorts, archived live, embed video links | youtube-transcript-api first, yt-dlp audio fallback |
 | Local files | mp4 / mkv / mov / mp3 / wav / m4a ... | ffmpeg |
 
 ## Engines
@@ -41,6 +42,7 @@ uv run playwright install chromium
 
 uv run video2text tx "https://www.bilibili.com/video/BV1xx411c7XD"
 uv run video2text tx "https://v.douyin.com/xxxx/"
+uv run video2text tx "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 uv run video2text tx ./my-video.mp4 --provider qwen3-asr --force-asr
 (cd web && npm install && npm run build)   # build the web UI once
 uv run video2text ui   # http://127.0.0.1:8000

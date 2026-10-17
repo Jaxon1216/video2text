@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 
-SourceKind = Literal["bilibili", "douyin", "audio", "video"]
-REMOTE_SOURCE_KINDS: frozenset[str] = frozenset({"bilibili", "douyin"})
+SourceKind = Literal["bilibili", "douyin", "youtube", "audio", "video"]
+REMOTE_SOURCE_KINDS: frozenset[str] = frozenset({"bilibili", "douyin", "youtube"})
 TaskStatus = Literal["queued", "running", "completed", "failed", "cancelled"]
 
 

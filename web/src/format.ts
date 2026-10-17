@@ -5,6 +5,7 @@ export const BLOCK_SECONDS = 30;
 export const PLATFORM_LABELS: Record<string, string> = {
   bilibili: "B站",
   douyin: "抖音",
+  youtube: "YouTube",
   video: "本地视频",
   audio: "本地音频",
 };
@@ -128,9 +129,9 @@ export function needsHours(blocks: Segment[]): boolean {
   return (blocks.at(-1)?.end ?? 0) >= 3600;
 }
 
-/** Only Bilibili honours a start-time query parameter on its web player. */
+/** Platforms with a start-time query parameter on their web player. */
 export function timeLink(document: TranscriptDocument, seconds: number): string | null {
-  if (document.platform !== "bilibili" || !document.url) return null;
+  if (!["bilibili", "youtube"].includes(document.platform) || !document.url) return null;
   try {
     const url = new URL(document.url);
     url.searchParams.set("t", String(Math.floor(seconds)));

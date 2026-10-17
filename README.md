@@ -2,7 +2,7 @@
 
 [English](README.en.md) · [更新日志](CHANGELOG.md)
 
-把 **B站 / 抖音** 视频链接快速转成**带时间戳的文字稿**，一键复制给 ChatGPT / Claude，让 AI 帮你总结、解释或针对某一段继续追问。
+把 **B站 / 抖音 / YouTube** 视频链接快速转成**带时间戳的文字稿**，一键复制给 ChatGPT / Claude，让 AI 帮你总结、解释或针对某一段继续追问。
 
 ```text
 复制视频链接（或整段分享文本） → 粘贴 → 等待转写 → 拿到文字稿 → Copy for AI
@@ -16,6 +16,7 @@
 | --- | --- | --- |
 | B站 | BV 号、视频链接、App 分享文本 | yt-dlp |
 | 抖音 | App 分享文本、`v.douyin.com` 短链、视频链接 | Playwright 浏览器截获（不需要登录） |
+| YouTube | watch、youtu.be、Shorts、live 录播、embed 单视频链接 | youtube-transcript-api 字幕优先，yt-dlp 音频回退 |
 | 本地文件 | mp4 / mkv / mov / mp3 / wav / m4a 等 | ffmpeg |
 
 ## 转写引擎
@@ -45,6 +46,7 @@ uv run playwright install chromium
 ```bash
 uv run video2text tx "https://www.bilibili.com/video/BV1xx411c7XD"
 uv run video2text tx "复制打开抖音，看看【xxx的作品】... https://v.douyin.com/xxxx/"
+uv run video2text tx "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 uv run video2text tx ./my-video.mp4 --model medium
 uv run video2text tx ./my-video.mp4 --provider qwen3-asr --force-asr
 # 专业术语多时加提示词，识别会准很多：
@@ -67,6 +69,8 @@ uv run video2text ui   # http://127.0.0.1:8000
 在文字稿页点 **Copy for AI**，会复制“提示语 + 视频信息 + 带时间戳的文字稿”，直接粘贴给 ChatGPT / Claude 即可。
 
 文字稿详情还可选新模型重转写；已有完整音频会复用，新结果单独保留。任务列表和详情页支持中断排队或正在处理的任务。
+
+YouTube 默认使用中文/英文人工字幕，其次自动字幕，再尝试其他原始语言；无字幕时只下载音频再识别。`uv sync` 已包含字幕库及 yt-dlp 所需的 EJS / Deno，无需 Google API Key。需要本机网络能访问 YouTube；代理、Cookie、直播和风控限制见 [YouTube 平台说明](docs/platforms/youtube.md)。
 
 新配置默认 faster-whisper `large-v3-turbo`，首次识别时按需下载模型；模型选择页会显示本机缓存状态。国内网络请先 `export HF_ENDPOINT=https://hf-mirror.com`。
 Qwen3-ASR 首次使用会下载 1.7B 权重（约 4.7 GB）；结果可照常用 Copy for AI，但不带时间戳。已有 0.6B 文字稿保留，重新识别时会选 1.7B。
