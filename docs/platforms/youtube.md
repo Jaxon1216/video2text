@@ -34,6 +34,17 @@ uv run video2text tx "https://youtu.be/dQw4w9WgXcQ" --force-asr
 - Docker 无法读取宿主机浏览器登录态，可挂载 Netscape 格式 Cookie 到 `/data/cookies.txt`。容器访问宿主机代理需要可达的宿主机地址，不能用容器自己的 `127.0.0.1`。
 - 网络超时先确认本机/容器能访问 YouTube。403、bot 验证等可以先更新 `uv lock --upgrade-package yt-dlp` 并以完整 extras 组合重新 `uv sync`；Cookie 也不保证绕过所有限制，不自动配置 PO Token。
 
+本机 HTTP 代理端口为 7897 时，可仅给当前命令配置代理（按实际端口调整）：
+
+```bash
+HTTP_PROXY=http://127.0.0.1:7897 HTTPS_PROXY=http://127.0.0.1:7897 \
+  uv run video2text tx "https://youtu.be/jNQXAC9IVRw"
+HTTP_PROXY=http://127.0.0.1:7897 HTTPS_PROXY=http://127.0.0.1:7897 \
+  uv run video2text ui
+```
+
+Web 服务需要从带这些环境变量的进程启动；浏览器自身能访问 YouTube，不代表后台 Python 已配置代理。本次验收只给测试进程传入代理，没有修改系统代理或用户配置。
+
 实现依据：[youtube-transcript-api 官方接口](https://github.com/jdepoix/youtube-transcript-api)、[yt-dlp EJS 与运行时说明](https://github.com/yt-dlp/yt-dlp/wiki/EJS)。
 
 ## 测试与验收
@@ -51,4 +62,11 @@ V2T_BROWSER_TEST_URL=http://127.0.0.1:5174 uv run pytest tests/test_web_browser.
 
 2026-10-17 自动化结果：完整 pytest 为 229 passed / 20 skipped（默认跳过浏览器）；另行运行浏览器回归为 20 passed。前端构建、`uv lock --check` 与 `uv run deno --version` 均通过。保留 3 条基线已有的第三方弃用警告。
 
-2026-10-17 手动网络冒烟：`dQw4w9WgXcQ` 字幕请求在连接 YouTube 时 15 秒超时；`BaW_jenozKc` 音频路径重试后同样连接超时，尚未进入媒体下载和 ffmpeg。此结果说明当前运行环境尚未完成真实视频端到端验收；不把 mock 通过视为真实网络成功。网络可用后，使用有字幕、无字幕/强制 ASR、Shorts 和已结束直播各一条验证，并检查对应 txt/metadata/SRT 和缓存复用。
+2026-10-17 真实网络验收：初次直连 YouTube 超时；用户提供本机 HTTP 代理 `127.0.0.1:7897` 后，在独立测试工作区完成以下验证，没有使用网络或 ASR mock：
+
+- `jNQXAC9IVRw`（Me at the zoo，19 秒）：字幕路径获取英文 6 段，跳过媒体与 ASR；强制 ASR 成功下载约 246 KiB 纯音频，经真实 ffmpeg 和本机已缓存的 faster-whisper large-v3-turbo（CPU int8、英文）得到 5 段。含模型加载的首轮约 11.92 秒；再次转写约 4.14 秒，复用相同 WAV，文件修改时间不变，进度中没有下载和抽音频阶段，新稿独立保存。三轮均入库，并成功导出 txt/plain/md/srt。
+- `dQw4w9WgXcQ`：英文字幕获取成功，共 61 段，标题获取成功。
+- `https://www.youtube.com/shorts/BGQWPY4IigY`（14 秒）：平台禁用字幕，普通转写自动回退到真实音频下载、ffmpeg 和 ASR（语言自动检测为英文），约 15.33 秒得到 3 段；入库和四种导出成功。
+- `https://www.youtube.com/live/qVv6vCqciTM`：解析为已结束直播（`was_live`，4438 秒），获取日语字幕 1389 段。此样本只验证元数据与字幕，没有下载整场直播或运行长音频 ASR。
+
+本机验收文件保存在独立的 `.v2t/youtube-validation-1877qdvj/`，`validation.json` 记录耗时、片段数、文件路径和缓存检查，`exports/` 保存导出样本；测试数据不进入 Git，也不混入主文字稿库。真实样本验证的是链路与输出完整性，未做人工逐字准确率评测。
