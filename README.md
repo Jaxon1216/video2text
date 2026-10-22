@@ -70,7 +70,9 @@ uv run video2text ui   # http://127.0.0.1:8000
 
 文字稿详情还可选新模型重转写；已有完整音频会复用，新结果单独保留。任务列表和详情页支持中断排队或正在处理的任务。
 
-YouTube 默认使用中文/英文人工字幕，其次自动字幕，再尝试其他原始语言；无字幕时只下载音频再识别。`uv sync` 已包含字幕库及 yt-dlp 所需的 EJS / Deno，无需 Google API Key。需要本机网络能访问 YouTube；代理、Cookie、直播和风控限制见 [YouTube 平台说明](docs/platforms/youtube.md)。
+YouTube 默认使用中文/英文人工字幕，其次自动字幕，再尝试其他原始语言；无字幕或字幕请求失败时，优先下载音频再识别。`uv sync` 已包含字幕库及 yt-dlp 所需的 EJS / Deno，无需 Google API Key。后端进程需要能访问 YouTube；英文/多语视频使用 ASR 时，可将工作区 `config.json` 的 `faster_whisper.language` 设为 `"auto"`。
+
+YouTube 当前是**已跑通真实样本、稳定性仍待验证的自用 MVP**。2026-10-23 实测成功获取字幕、完成无字幕 Shorts 的下载与转写，并验证音频缓存复用和导出；也遇到重复下载的 SSL EOF 错误，以及测试进程开启模型离线模式后的缓存加载失败。自动化测试通过不能代替真实网络验收。代理配置、实测结果和排查方法见 [YouTube 平台说明](docs/platforms/youtube.md)。
 
 新配置默认 faster-whisper `large-v3-turbo`，首次识别时按需下载模型；模型选择页会显示本机缓存状态。国内网络请先 `export HF_ENDPOINT=https://hf-mirror.com`。
 Qwen3-ASR 首次使用会下载 1.7B 权重（约 4.7 GB）；结果可照常用 Copy for AI，但不带时间戳。已有 0.6B 文字稿保留，重新识别时会选 1.7B。
