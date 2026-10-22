@@ -188,6 +188,55 @@ export function formatDate(iso: string): string {
   return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+export function formatTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+}
+
+export interface DayGroup<T> {
+  key: string;
+  label: string;
+  /** Today, yesterday, or unparseable dates: expanded by default. */
+  recent: boolean;
+  items: T[];
+}
+
+const UNKNOWN_DAY = "unknown";
+
+function dayKey(date: Date): string {
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+/** Groups items by local calendar day of `created_at`, keeping the input order of first appearance. */
+export function groupByDay<T extends { created_at: string }>(items: T[], now = new Date()): DayGroup<T>[] {
+  const today = dayKey(now);
+  const yesterday = dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+  const groups = new Map<string, DayGroup<T>>();
+  const unknown: T[] = [];
+  for (const item of items) {
+    const date = new Date(item.created_at);
+    if (Number.isNaN(date.getTime())) {
+      unknown.push(item);
+      continue;
+    }
+    const key = dayKey(date);
+    let group = groups.get(key);
+    if (!group) {
+      const label = key === today ? "今天"
+        : key === yesterday ? "昨天"
+        : date.getFullYear() === now.getFullYear() ? `${date.getMonth() + 1}月${date.getDate()}日`
+        : `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+      group = { key, label, recent: key === today || key === yesterday, items: [] };
+      groups.set(key, group);
+    }
+    group.items.push(item);
+  }
+  const result = [...groups.values()];
+  if (unknown.length) result.push({ key: UNKNOWN_DAY, label: "日期未知", recent: true, items: unknown });
+  return result;
+}
+
 export async function copyText(text: string): Promise<void> {
   if (navigator.clipboard && window.isSecureContext) {
     try {
