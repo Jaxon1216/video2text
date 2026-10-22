@@ -33,6 +33,9 @@ export interface Task {
   source_input: string;
   provider: string;
   model: string;
+  prompt: string;
+  force_asr: boolean;
+  retranscribe_video_id: number | null;
   cancel_requested: boolean;
   progress_percent: number;
   current_stage: string;
@@ -143,6 +146,10 @@ export function getTask(taskId: string): Promise<Task> {
 
 export function cancelTask(taskId: string): Promise<Task> {
   return request<Task>(`/api/tasks/${taskId}/cancel`, { method: "POST" });
+}
+
+export function retryTask(taskId: string): Promise<{ task_id: string; status: TaskStatus }> {
+  return request(`/api/tasks/${taskId}/retry`, { method: "POST" });
 }
 
 export async function listTasks(): Promise<Task[]> {

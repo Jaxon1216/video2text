@@ -55,12 +55,11 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
         workspace: Path | None = typer.Option(None, "--workspace", help=tr(language, "opt_workspace_help")),
     ) -> None:
         """Download or open media, then transcribe it with the selected provider."""
+        service = None
         try:
             if export_format and export_format.lower() not in EXPORT_FORMATS:
                 raise ValueError(f"unsupported export format: {export_format} (choose from {', '.join(EXPORT_FORMATS)})")
             settings, config = _load_runtime(workspace=workspace, provider=provider, model=model)
-            if force_asr:
-                config.prefer_subtitles = False
             renderer = TqdmTaskRenderer(config.language)
             service = _build_task_service(
                 settings=settings,
@@ -73,6 +72,7 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                 provider=provider or config.default_provider,
                 model=model or config.default_model,
                 prompt=prompt,
+                force_asr=force_asr,
                 listener=renderer,
             )
             typer.echo(tr(config.language, "task_submitted", task_id=task.id))
@@ -90,6 +90,9 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
             message = tr(_detect_preferred_language(workspace), "error_prefix", message=exc)
             typer.secho(message, err=True, fg=typer.colors.RED)
             raise typer.Exit(code=1) from exc
+        finally:
+            if service is not None:
+                service.close()
 
         typer.echo(tr(config.language, "transcript_saved", path=transcript["file_path"]))
         typer.echo(tr(config.language, "metadata_saved", path=video["metadata_path"]))
@@ -127,10 +130,9 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
     ) -> None:
         """Submit multiple transcription tasks from arguments or a newline-separated file."""
         selected_language = _detect_preferred_language(workspace)
+        service = None
         try:
             settings, config = _load_runtime(workspace=workspace, provider=provider, model=model)
-            if force_asr:
-                config.prefer_subtitles = False
             service = _build_task_service(
                 settings=settings,
                 config=config,
@@ -144,6 +146,7 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
                     provider=provider or config.default_provider,
                     model=model or config.default_model,
                     prompt=prompt,
+                    force_asr=force_asr,
                 )
                 for source in source_values
             ]
@@ -176,6 +179,9 @@ def create_app(language: str = DEFAULT_LANGUAGE) -> typer.Typer:
             message = tr(selected_language, "error_prefix", message=exc)
             typer.secho(message, err=True, fg=typer.colors.RED)
             raise typer.Exit(code=1) from exc
+        finally:
+            if service is not None:
+                service.close()
 
         if failed:
             raise typer.Exit(code=1)
@@ -340,20 +346,28 @@ def _run_server(*, host: str, port: int, provider: str | None, model: str | None
 
     from v2t.web import create_app
 
-    settings, config = _load_runtime(workspace=workspace, provider=provider, model=model)
-    service = _build_task_service(settings=settings, config=config, provider=provider, model=model)
-    app_instance = create_app(
-        task_service=service,
-        library=service.library,
-        database=service.database,
-        default_provider=provider or config.default_provider,
-        default_model=model or config.default_model,
-        enabled_providers=config.enabled_providers,
-        config=config,
-    )
-    from v2t.logging_config import server_log_config
+    service = None
+    try:
+        settings, config = _load_runtime(workspace=workspace, provider=provider, model=model)
+        service = _build_task_service(settings=settings, config=config, provider=provider, model=model)
+        app_instance = create_app(
+            task_service=service,
+            library=service.library,
+            database=service.database,
+            default_provider=provider or config.default_provider,
+            default_model=model or config.default_model,
+            enabled_providers=config.enabled_providers,
+            config=config,
+        )
+        from v2t.logging_config import server_log_config
 
-    uvicorn.run(app_instance, host=host, port=port, log_config=server_log_config())
+        uvicorn.run(app_instance, host=host, port=port, log_config=server_log_config())
+    except Exception as exc:
+        typer.secho(tr(selected_language, "error_prefix", message=exc), err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+    finally:
+        if service is not None:
+            service.close()
 
 
 def _detect_preferred_language(workspace: Path | None = None) -> str:
@@ -379,6 +393,7 @@ def _build_task_service(
     service = TaskService(
         database=database,
         library=library,
+        prefer_subtitles=config.prefer_subtitles,
         pipeline_factory=lambda selected_provider, selected_model: build_pipeline(
             settings=settings,
             config=config,
@@ -386,7 +401,11 @@ def _build_task_service(
             model=selected_model or None,
         ),
     )
-    service.ensure_indexed()
+    try:
+        service.ensure_indexed()
+    except BaseException:
+        service.close()
+        raise
     return service
 
 

@@ -32,7 +32,10 @@ class AppDatabase:
         with self._connect() as conn:
             migrate_database(conn)
 
-    def create_task(self, *, kind: str, source_input: str, provider: str, model: str) -> TaskRecord:
+    def create_task(
+        self, *, kind: str, source_input: str, provider: str, model: str,
+        prompt: str = "", force_asr: bool = False, retranscribe_video_id: int | None = None,
+    ) -> TaskRecord:
         now = utc_now()
         task = TaskRecord(
             id=uuid.uuid4().hex,
@@ -42,6 +45,9 @@ class AppDatabase:
             provider=provider,
             model=model,
             workspace_root=str(self.settings.workspace_root),
+            prompt=prompt,
+            force_asr=force_asr,
+            retranscribe_video_id=retranscribe_video_id,
             created_at=now,
         )
         with self._connect() as conn:
@@ -49,8 +55,9 @@ class AppDatabase:
                 """
                 INSERT INTO tasks (
                     id, kind, status, source_input, provider, model, workspace_root,
-                    progress_percent, current_stage, current_message, error_message, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    progress_percent, current_stage, current_message, error_message, created_at,
+                    prompt, force_asr, retranscribe_video_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     task.id,
@@ -65,6 +72,9 @@ class AppDatabase:
                     task.current_message,
                     task.error_message,
                     task.created_at,
+                    task.prompt,
+                    1 if task.force_asr else 0,
+                    task.retranscribe_video_id,
                 ),
             )
         return task
@@ -487,6 +497,9 @@ class AppDatabase:
             provider=row["provider"],
             model=row["model"],
             workspace_root=row["workspace_root"],
+            prompt=row["prompt"],
+            force_asr=bool(row["force_asr"]),
+            retranscribe_video_id=row["retranscribe_video_id"],
             cancel_requested=bool(row["cancel_requested"]),
             progress_percent=float(row["progress_percent"]),
             current_stage=row["current_stage"],

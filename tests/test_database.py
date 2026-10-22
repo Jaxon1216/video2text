@@ -7,6 +7,7 @@ import pytest
 from v2t.config import Settings
 from v2t.database import AppDatabase
 from v2t.library import WorkspaceLibrary
+from v2t.migrations import SCHEMA_STATEMENTS
 from v2t.models import ProgressSnapshot, SourceRef, TranscriptResult
 
 
@@ -22,7 +23,7 @@ def test_settings_create_database_and_workspace_directories(tmp_path: Path) -> N
 def test_new_database_has_versioned_schema(tmp_path: Path) -> None:
     database = AppDatabase(Settings.from_workspace(tmp_path / ".v2t"))
     with sqlite3.connect(database.path) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
         columns = {row[1] for row in conn.execute("PRAGMA table_info(tasks)")}
         assert "cancel_requested" in columns
 
@@ -51,7 +52,7 @@ def test_legacy_task_schema_is_upgraded_without_losing_rows(tmp_path: Path) -> N
     database = AppDatabase(settings)
     assert database.get_task("old").id == "old"
     with sqlite3.connect(database.path) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
         assert conn.execute("SELECT cancel_requested FROM tasks WHERE id = 'old'").fetchone()[0] == 0
     AppDatabase(settings)
     assert database.get_task("old").id == "old"
@@ -78,7 +79,7 @@ def test_unversioned_database_preserves_video_and_transcript_version(tmp_path: P
     assert upgraded.get_video(video_id)["title"] == "旧视频"
     assert upgraded.get_active_transcript_version(video_id).id == version_id
     with sqlite3.connect(upgraded.path) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
 
 
 def test_newer_schema_version_is_rejected(tmp_path: Path) -> None:
@@ -88,6 +89,36 @@ def test_newer_schema_version_is_rejected(tmp_path: Path) -> None:
         conn.execute("PRAGMA user_version = 999")
     with pytest.raises(RuntimeError, match="newer database schema"):
         AppDatabase(settings)
+
+
+def test_v1_database_migrates_retry_parameters_and_preserves_rows(tmp_path: Path) -> None:
+    settings = Settings.from_workspace(tmp_path)
+    settings.ensure_directories()
+    with sqlite3.connect(settings.app_db_path) as conn:
+        for statement in SCHEMA_STATEMENTS:
+            conn.execute(statement)
+        conn.execute("PRAGMA user_version = 1")
+        conn.execute(
+            "INSERT INTO tasks (id, kind, status, source_input, provider, model, workspace_root, created_at) "
+            "VALUES ('legacy', 'transcription', 'failed', 'BV1xx411c7XD', 'whisper', 'small', ?, '2026-10-22')",
+            (str(tmp_path),),
+        )
+    database = AppDatabase(settings)
+    old = database.get_task("legacy")
+    assert old is not None
+    assert (old.status, old.source_input, old.provider, old.model) == (
+        "failed", "BV1xx411c7XD", "whisper", "small"
+    )
+    assert (old.prompt, old.force_asr, old.retranscribe_video_id) == ("", False, None)
+    new = database.create_task(
+        kind="transcription", source_input="demo", provider="whisper", model="medium",
+        prompt="术语", force_asr=True, retranscribe_video_id=42,
+    )
+    reopened = AppDatabase(settings)
+    loaded = reopened.get_task(new.id)
+    assert (loaded.prompt, loaded.force_asr, loaded.retranscribe_video_id) == ("术语", True, 42)
+    with sqlite3.connect(database.path) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
 
 
 def test_database_persists_task_progress(tmp_path: Path) -> None:

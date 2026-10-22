@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ApiError, cancelTask, getTask, submitSources, type Task } from "../api";
+import { useEffect, useRef, useState } from "react";
+import { ApiError, cancelTask, getTask, retryTask, type Task } from "../api";
 import { PIPELINE_STAGES, messageLabel, stageLabel } from "../format";
 import { Link, navigate } from "../router";
 
@@ -9,14 +9,21 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const [missing, setMissing] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const taskSession = useRef<object | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    const session = {};
+    taskSession.current = session;
+    setTask(null);
+    setError(null);
+    setMissing(false);
+    setRetrying(false);
+    setCancelling(false);
     let timer: number | undefined;
     const poll = async () => {
       try {
         const latest = await getTask(taskId);
-        if (cancelled) return;
+        if (taskSession.current !== session) return;
         setTask(latest);
         setError(null);
         if (latest.status === "completed" && latest.video_id !== null) {
@@ -25,7 +32,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
         }
         if (latest.status === "running" || latest.status === "queued") timer = window.setTimeout(poll, 1000);
       } catch (err) {
-        if (cancelled) return;
+        if (taskSession.current !== session) return;
         if (err instanceof ApiError && err.status === 404) {
           setMissing(true);
         } else {
@@ -36,33 +43,41 @@ export function TaskPage({ taskId }: { taskId: string }) {
     };
     poll();
     return () => {
-      cancelled = true;
+      if (taskSession.current === session) taskSession.current = null;
       window.clearTimeout(timer);
     };
   }, [taskId]);
 
   const retry = async () => {
-    if (!task) return;
+    const session = taskSession.current;
+    if (!task || !session || retrying) return;
     setRetrying(true);
     try {
-      const [id] = await submitSources(task.source_input, { provider: task.provider, model: task.model, prompt: "" });
-      navigate(`/tasks/${id}`, { replace: true });
+      const created = await retryTask(task.id);
+      if (taskSession.current !== session) return;
+      navigate(`/tasks/${created.task_id}`, { replace: true });
     } catch (err) {
+      if (taskSession.current !== session) return;
       setError((err as Error).message);
-      setRetrying(false);
+    } finally {
+      if (taskSession.current === session) setRetrying(false);
     }
   };
 
   const cancel = async () => {
-    if (!task || cancelling) return;
+    const session = taskSession.current;
+    if (!task || !session || cancelling) return;
     setCancelling(true);
     try {
-      setTask(await cancelTask(task.id));
+      const updated = await cancelTask(task.id);
+      if (taskSession.current !== session) return;
+      setTask(updated);
       setError(null);
     } catch (err) {
+      if (taskSession.current !== session) return;
       setError(`中断失败：${(err as Error).message}`);
     } finally {
-      setCancelling(false);
+      if (taskSession.current === session) setCancelling(false);
     }
   };
 

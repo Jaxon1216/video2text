@@ -23,6 +23,8 @@ uv run video2text tx "<输入>" --workspace /tmp/v2t-dev   # 用临时工作区�
 uv run video2text ui --port 8765       # Web 调试
 ```
 
+同一工作区同时只允许一个任务服务。Web 运行时另开 CLI 转写会提示工作区正在使用；可以通过现有 Web 提交，或用 `--workspace` 指定独立工作区。退出服务后可重新启动，无需删除 `.task-service.lock` 文件。
+
 ## 前端
 
 ```bash

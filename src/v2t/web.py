@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+from asyncio import to_thread
+from contextlib import asynccontextmanager
 from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
@@ -89,6 +91,7 @@ def create_app(
         runtime_config.default_provider = selected_provider
     if enabled_providers is not None:
         runtime_config.enabled_providers = list(enabled_providers)
+    task_service.prefer_subtitles = runtime_config.prefer_subtitles
 
     def task_options(provider: str | None, model: str | None) -> tuple[str, str]:
         selected_provider = (provider or runtime_config.default_provider).strip().lower()
@@ -101,7 +104,15 @@ def create_app(
         return selected_provider, selected_model
 
     inventory = ModelInventory(runtime_config)
-    app = FastAPI(title="video2text")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        try:
+            yield
+        finally:
+            await to_thread(task_service.close)
+
+    app = FastAPI(title="video2text", lifespan=lifespan)
     dist = web_dist if web_dist is not None else resolve_web_dist()
 
     @app.post("/api/tasks/transcribe")
@@ -169,6 +180,16 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return JSONResponse(asdict(task))
+
+    @app.post("/api/tasks/{task_id}/retry")
+    async def retry_task(task_id: str) -> JSONResponse:
+        try:
+            task = task_service.retry_task(task_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="task not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return JSONResponse({"task_id": task.id, "status": task.status})
 
     @app.get("/api/tasks/{task_id}/progress")
     async def get_task_progress(task_id: str) -> JSONResponse:
