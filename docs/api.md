@@ -146,6 +146,8 @@ YouTube 可直接传 `source: "https://youtu.be/dQw4w9WgXcQ"`，也支持 watch�
       "source_input": "https://www.bilibili.com/video/BV1xx411c7XD",
       "provider": "whisper",
       "model": "small",
+      "prompt": "线程池、阻塞队列",
+      "force_asr": false,
       "workspace_root": ".v2t",
       "progress_percent": 1.0,
       "current_stage": "completed",
@@ -173,6 +175,16 @@ YouTube 可直接传 `source: "https://youtu.be/dQw4w9WgXcQ"`，也支持 watch�
 ### 4a. 中断任务
 
 `POST /api/tasks/{task_id}/cancel`。排队任务返回 `status=cancelled`；运行任务返回原状态和 `cancel_requested=true`，客户端继续轮询直至 `cancelled`。重复取消已取消任务返回当前任务；任务不存在返回 404，已完成或失败返回 409。任务对象新增布尔字段 `cancel_requested`。
+
+### 4b. 按原参数重试任务
+
+`POST /api/tasks/{task_id}/retry`，无需请求体。仅失败或已取消的任务可以重试；任务不存在返回 404，其他状态返回 409。
+
+响应为 `{"task_id": "新任务 ID", "status": "queued"}`。原任务记录保留，新任务复用其来源、引擎、模型、术语提示（`prompt`）和强制 ASR（`force_asr`）设置。换模型重转写、CLI `--force-asr` 或关闭字幕优先后提交的任务，重试时仍强制 ASR。任务查询和列表也返回 `prompt`、`force_asr` 和 `retranscribe_video_id`（重转写的来源视频 ID，普通任务为 null）；旧记录缺少这些字段时分别使用空字符串、`false` 和 null，无法恢复之前未保存的参数。
+
+前端重试后进入新任务页面，可再次查看失败信息并重试。
+
+新建本地文件任务会将来源固化为绝对路径，保证切换启动目录后仍读取同一文件。旧记录若只保存了相对本地路径，无法还原原启动目录，重试返回 409 并提示重新提交，避免误读当前目录的同名文件。
 
 ### 5. 查询任务当前进度
 

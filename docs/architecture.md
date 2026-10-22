@@ -85,7 +85,8 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 | `transcribers/` | `Transcriber.transcribe(audio_path, prompt, progress) -> dict` |
 | `factory.py` | 组装 pipeline：provider -> Transcriber（按 provider + model + 配置缓存，模型只加载一次），kind -> Downloader |
 | `pipeline.py` | 唯一的流程编排处 |
-| `tasks.py` | `ThreadPoolExecutor`（并发数 `V2T_TASK_WORKERS`，默认 1）；提交新转写或换模型重转写任务、管理取消令牌，把进度快照写库并通知监听者 |
+| `tasks.py` | 工作区排他锁 + `ThreadPoolExecutor`（并发数 `V2T_TASK_WORKERS`，默认 1）；提交新转写、换模型重转写和原参数重试任务，管理取消令牌，把进度快照写库并通知监听者 |
+| `workspace_lock.py` | 跨进程工作区锁，macOS / Linux 使用 `flock`，Windows 使用文件字节锁；进程退出自动释放 |
 | `progress.py` | 各阶段占总进度的区间：preparing / downloading / extracting_audio / transcribing / writing_outputs / indexing |
 | `library.py` | 登记结果、编辑后另存新版本、启动时扫描工作区补索引；重转写前核对来源并导入可复用旧音频 |
 | `database.py` | SQLite 连接、查询与写入 |
@@ -102,6 +103,7 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 .v2t/
   config.json          用户配置（默认 provider/model、云 ASR key）
   app.db               SQLite 索引
+  .task-service.lock   任务服务进程锁，文件保留不代表仍被占用
   downloads/           下载的视频/音频
   audio/               ffmpeg 输出的 16k wav
   audio/cache/         按来源索引的完整 WAV 与 manifest（损坏文件不会命中）
@@ -116,14 +118,20 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 
 ## 数据库表
 
-- `tasks` / `task_progress_events`：任务状态、取消请求与进度事件；服务重启时遗留的活跃任务标为失败
+- `tasks` / `task_progress_events`：任务状态、原始识别选项、取消请求与进度事件；持有工作区进程锁的服务启动时将遗留活跃任务标为失败
 - `videos`：一条转写结果（`source_kind`、来源、标题、引擎、文件路径、当前版本指针）
 - `transcript_versions`：`kind=original|edited`，每个版本一个文件
 - `categories` / `tags` / `video_tags`：分类与标签
 
 `tasks.kind` 与 `transcript_versions.kind` 是以后扩展"总结 / 分章节"等新任务、新产物的挂载点。
 
-数据库使用 SQLite `PRAGMA user_version` 标记结构版本。`migrations.py` 在打开工作区时把未标版本的旧库升级到版本 1：保留已有数据，并为早期 `tasks` 表补上 `cancel_requested`。新库使用同一升级路径建表；已是版本 1 的库不会重复执行 DDL。若数据库版本高于当前程序支持的版本，启动会报错，避免旧程序误写新库。迁移中的建表、补列和版本号写入在同一事务中完成。
+数据库使用 SQLite `PRAGMA user_version` 标记结构版本。`migrations.py` 在打开工作区时保留已有数据并按版本升级：版本 1 为早期 `tasks` 表补上 `cancel_requested`，版本 2 保存重试所需的术语提示、强制 ASR 设置和重转写来源视频。新库使用同一升级路径建表；已是最新版本的库不会重复执行 DDL。若数据库版本高于当前程序支持的版本，启动会报错，避免旧程序误写新库。迁移中的建表、补列和版本号写入在同一事务中完成。
+
+同一工作区同时只运行一个 `TaskService`。服务先获取 `.task-service.lock` 的操作系统排他锁，再恢复遗留任务；另一个 CLI / Web 进程启动任务服务会明确报错，不会修改原服务的活跃任务状态。需要同时运行独立服务时使用不同 `--workspace`。服务关闭等待已接受任务结束后释放锁，异常进程退出由操作系统释放；无需手动删除锁文件。CLI 在退出路径关闭服务，Web 在应用生命周期结束时关闭服务。
+
+任务提交时将 `prompt` 和有效 `force_asr` 写入 SQLite；关闭字幕优先也会固化为强制 ASR。`POST /api/tasks/{id}/retry` 仅允许失败或已取消的任务，按原参数创建新任务，保留旧记录。换模型重转写的重试仍强制 ASR，并保留准备旧音频所需的来源视频；前端不再重建普通转写请求。旧记录未保存的提示词和强制 ASR 参数分别使用空字符串和 `false`。
+
+本地任务首次提交时将 `source_input` 固化为绝对路径，跨启动目录重试仍使用原文件。旧任务仅存相对本地路径时拒绝重试并提示重新提交，因为原工作目录已无法可靠还原。
 
 ## 配置与环境变量
 

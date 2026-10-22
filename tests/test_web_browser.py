@@ -161,6 +161,41 @@ def test_missing_task_stops_polling(page):
     assert len(calls) == initial_count
 
 
+def test_failed_task_can_retry_again_after_a_second_failure(page):
+    from playwright.sync_api import expect
+
+    submitted = []
+    page.on("request", lambda request: submitted.append(request) if request.method == "POST" else None)
+
+    def task(route):
+        task_id = route.request.url.rsplit("/", 1)[1]
+        route.fulfill(json={**TASK, "id": task_id, "status": "failed", "error_message": f"{task_id} 识别失败"})
+
+    def retry(route):
+        task_id = route.request.url.rsplit("/", 2)[1]
+        next_id = "second-failure" if task_id == "first-failure" else "third-attempt"
+        route.fulfill(json={"task_id": next_id, "status": "queued"})
+
+    page.route("**/api/tasks/first-failure", task)
+    page.route("**/api/tasks/second-failure", task)
+    page.route("**/api/tasks/third-attempt", lambda route: route.fulfill(json={**TASK, "id": "third-attempt"}))
+    page.route("**/api/tasks/*/retry", retry)
+    page.goto(f"{URL}/tasks/first-failure")
+    page.get_by_role("button", name="重试", exact=True).click()
+    expect(page).to_have_url(f"{URL}/tasks/second-failure")
+    expect(page.get_by_text("second-failure 识别失败", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="重试", exact=True)).to_be_enabled()
+    page.get_by_role("button", name="重试", exact=True).click()
+    expect(page).to_have_url(f"{URL}/tasks/third-attempt")
+    expect(page.get_by_text("40%", exact=True)).to_be_visible()
+
+    assert [request.url for request in submitted] == [
+        f"{URL}/api/tasks/first-failure/retry",
+        f"{URL}/api/tasks/second-failure/retry",
+    ]
+    assert all(request.post_data is None for request in submitted)
+
+
 def test_cancel_running_task_from_detail(page):
     from playwright.sync_api import expect
 

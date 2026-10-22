@@ -100,6 +100,9 @@ class TaskRecord:
     provider: str
     model: str
     workspace_root: str
+    prompt: str = ""
+    force_asr: bool = False
+    retranscribe_video_id: int | None = None
     cancel_requested: bool = False
     progress_percent: float = 0.0
     current_stage: str = "queued"

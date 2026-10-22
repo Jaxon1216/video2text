@@ -51,7 +51,8 @@ src/v2t/
   evaluation.py     评测指标：CER、术语召回
   downloaders/      ytdlp.py（B站 + 公共 yt-dlp 配置/进度）、douyin.py（抖音）、youtube.py（字幕优先、音频下载）
   transcribers/     faster_whisper_local.py、whisper_local.py、qwen3_asr_local.py、sensevoice_local.py、volcengine.py
-  tasks.py          线程池任务服务 + 换模型重转写提交 + 协作式中断 + 进度回调
+  tasks.py          线程池任务服务 + 工作区排他锁 + 原参数重试 + 换模型重转写 + 协作式中断
+  workspace_lock.py 工作区任务服务进程锁（macOS / Linux / Windows）
   logging_config.py 正常轮询 access log 过滤与任务日志配置
   progress.py       阶段进度（stage -> 总进度区间）
   library.py        把结果登记进视频库、管理转写稿版本、准备重转写来源与旧音频
@@ -74,6 +75,7 @@ docs/               架构、路线图、决策、平台说明、API
 - **新增 ASR**：`transcribers/` 新建实现，返回的 `segments` 必须用 `normalize_segments` 归一化 → `factory.py` + `user_config.py` 注册 → `bootstrap.py` / `doctor` 接入。
 - **测试不访问网络**：下载器、云 ASR、浏览器一律 mock；真实链接只用于手动端到端验证。
 - **任务中断**：排队任务直接取消，运行任务通过取消令牌在阶段边界和进度检查点停止；不可中断的模型调用返回后丢弃结果。`cancel_requested` 与终态写库须避免竞态。
+- **任务恢复与重试**：一个工作区同时只允许一个任务服务；拿到进程锁后才能恢复遗留任务，CLI / Web 退出时关闭服务并释放锁。失败或已取消任务由后端按持久化的来源、引擎、模型、术语提示和强制 ASR 选项重试，前端不能自行拼接新建请求。本地来源首次提交时固化为绝对路径；旧相对路径任务拒绝重试，提示重新提交。旧记录未保存的提示词和强制 ASR 参数使用默认值。
 - **音频缓存**：远程来源按平台视频 ID（B站另加分 P）缓存完整 16k WAV；只复用通过格式校验的文件。详情页换模型重转写强制 ASR、独立保存新文字稿；普通新建转写仍字幕优先。
 - **保持简单**：不引入 Redis、消息队列、复杂数据库、登录权限等；SQLite + 线程池足够。确需引入必须先在 `docs/decisions.md` 记录理由。
 - **抖音**：不逆向 `a_bogus` 等签名算法；走 Playwright 浏览器截获（见 `docs/platforms/douyin.md`）。浏览器 UA 必须与实际系统一致（`default_user_agent`），否则详情接口返回空数据。

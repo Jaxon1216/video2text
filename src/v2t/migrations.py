@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA_STATEMENTS: tuple[str, ...] = (
     """CREATE TABLE IF NOT EXISTS tasks (
@@ -94,11 +94,21 @@ def migrate_database(connection: sqlite3.Connection) -> None:
 
     connection.execute("BEGIN IMMEDIATE")
     try:
-        for statement in SCHEMA_STATEMENTS:
-            connection.execute(statement)
-        columns = {row[1] for row in connection.execute("PRAGMA table_info(tasks)")}
-        if "cancel_requested" not in columns:
-            connection.execute("ALTER TABLE tasks ADD COLUMN cancel_requested INTEGER NOT NULL DEFAULT 0")
+        if current < 1:
+            for statement in SCHEMA_STATEMENTS:
+                connection.execute(statement)
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(tasks)")}
+            if "cancel_requested" not in columns:
+                connection.execute("ALTER TABLE tasks ADD COLUMN cancel_requested INTEGER NOT NULL DEFAULT 0")
+        if current < 2:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(tasks)")}
+            for name, definition in (
+                ("prompt", "TEXT NOT NULL DEFAULT ''"),
+                ("force_asr", "INTEGER NOT NULL DEFAULT 0"),
+                ("retranscribe_video_id", "INTEGER"),
+            ):
+                if name not in columns:
+                    connection.execute(f"ALTER TABLE tasks ADD COLUMN {name} {definition}")
         connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         connection.commit()
     except Exception:
