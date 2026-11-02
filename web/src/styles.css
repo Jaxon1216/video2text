@@ -636,6 +636,65 @@ kbd {
   font-size: 0.9rem;
 }
 
+.version-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin: 1.8rem 0 0 6rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.version-switcher [role="tablist"] {
+  display: flex;
+  gap: 1.2rem;
+}
+
+.version-switcher [role="tab"] {
+  padding: 0.65rem 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+
+.version-switcher [aria-selected="true"] {
+  border-bottom-color: var(--cinnabar);
+  color: var(--cinnabar);
+}
+
+.ai-empty,
+.ai-file-hint {
+  margin: 1.5rem 0 1.5rem 6rem;
+  font-size: 0.9rem;
+}
+
+.ai-empty {
+  padding: 1.5rem;
+  background: var(--paper-card);
+  border: 1px solid var(--rule);
+}
+
+.ai-empty h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.ai-empty code,
+.ai-file-hint code {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.ai-file-hint summary {
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
 .toolbar {
   position: sticky;
   top: 0;
@@ -813,7 +872,10 @@ a.stamp:hover {
     margin-left: 0;
   }
 
-  .toolbar {
+  .toolbar,
+  .version-switcher,
+  .ai-empty,
+  .ai-file-hint {
     margin-left: 0;
   }
 

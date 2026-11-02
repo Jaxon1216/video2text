@@ -2,6 +2,7 @@ import hashlib
 import json
 import wave
 from pathlib import Path
+from urllib.parse import quote
 import pytest
 
 from fastapi.testclient import TestClient
@@ -421,7 +422,7 @@ def test_api_document_segments_and_export(tmp_path: Path) -> None:
         txt = client.get(f"/api/videos/{video_id}/export?format=txt")
         assert txt.status_code == 200
         assert txt.text == "[00:00] demo\n\n[00:31] text\n"
-        assert "filename*=UTF-8''Demo-Title.txt" in txt.headers["content-disposition"]
+        assert f"filename*=UTF-8''{quote(f'Demo-Title-原始稿-{video_id}.txt')}" in txt.headers["content-disposition"]
 
         srt = client.get(f"/api/videos/{video_id}/export?format=srt")
         assert srt.headers["content-type"].startswith("application/x-subrip")
@@ -434,6 +435,103 @@ def test_api_document_segments_and_export(tmp_path: Path) -> None:
         assert edited == {**edited, "has_timestamps": False, "version_kind": "edited", "segments": []}
         assert client.get(f"/api/videos/{video_id}/export?format=txt").text == "edited text\n"
         assert client.get(f"/api/videos/{video_id}/export?format=srt").status_code == 400
+
+
+def test_ai_delivery_import_preserves_original_and_version_history(tmp_path: Path) -> None:
+    app, _, database, library = build_test_app(tmp_path)
+    pipeline = FakePipelineWithSegments(library.settings, "whisper", "small")
+    video_id = library.register_transcript_result(pipeline.transcribe("https://www.bilibili.com/video/BV1xx411c7XD"))
+    other_id = library.register_transcript_result(pipeline.transcribe("https://www.bilibili.com/video/BV1yy411c7XD"))
+    original = database.get_active_transcript_version(video_id)
+    assert original is not None
+
+    with TestClient(app) as client:
+        url = f"/api/videos/{video_id}"
+        versions = client.get(f"{url}/versions").json()
+        delivery = Path(versions["ai_output_path"])
+        assert delivery == library.settings.transcripts_ai_dir / f"Demo-Title-AI优化-{video_id}.txt"
+        assert delivery.is_absolute()
+        assert versions["ai_import_error"] is None
+        assert len(versions["items"]) == 1
+
+        delivery.write_text("\ufeff修复后的第一稿。\n\n保留段落。\n", encoding="utf-8")
+        versions = client.get(f"{url}/versions").json()
+        first = versions["items"][0]
+        assert first["kind"] == "ai_optimized"
+        assert first["is_active"] is False
+        assert Path(first["file_path"]) != delivery
+        assert len(client.get(f"{url}/versions").json()["items"]) == 2
+        assert database.get_video(video_id)["current_transcript_version_id"] == original.id
+
+        optimized = client.get(f"{url}/document?version_id={first['id']}").json()
+        assert optimized["version_id"] == first["id"]
+        assert optimized["text"] == "修复后的第一稿。\n\n保留段落。\n"
+        assert optimized["segments"] == []
+        assert optimized["has_timestamps"] is False
+        exported = client.get(f"{url}/export?format=txt&version_id={first['id']}")
+        assert exported.text == optimized["text"]
+        assert quote(f"Demo-Title-AI优化-{video_id}.txt") in exported.headers["content-disposition"]
+        assert "文字稿版本：AI 优化" in client.get(f"{url}/export?format=md&version_id={first['id']}").text
+        assert client.get(f"{url}/export?format=srt&version_id={first['id']}").status_code == 400
+        assert client.get(f"{url}/document").json()["version_kind"] == "original"
+        assert client.get(f"{url}/document?version_id={original.id}").json()["has_timestamps"] is True
+        assert client.get(f"{url}/export?format=txt&version_id={original.id}").text == "[00:00] demo\n\n[00:31] text\n"
+
+        delivery.write_text("修复后的第二稿。\n", encoding="utf-8")
+        second = client.get(f"{url}/versions").json()["items"][0]
+        assert second["id"] != first["id"]
+        assert len(client.get(f"{url}/versions").json()["items"]) == 3
+        assert client.get(f"{url}/document?version_id={second['id']}").json()["text"] == "修复后的第二稿。\n"
+        assert client.get(f"{url}/document?version_id={first['id']}").json()["text"] == optimized["text"]
+        assert Path(original.file_path).read_text(encoding="utf-8") == "demo text\n"
+
+        for endpoint in ("document", "segments", "export"):
+            assert client.get(f"/api/videos/{other_id}/{endpoint}?version_id={first['id']}").status_code == 404
+            assert client.get(f"{url}/{endpoint}?version_id=99999").status_code == 404
+        assert client.get("/api/videos/99999/versions").status_code == 404
+
+
+def test_legacy_ai_delivery_imports_until_named_delivery_is_available(tmp_path: Path) -> None:
+    app, _, _, library = build_test_app(tmp_path)
+    video_id = library.register_transcript_result(
+        FakePipelineWithSegments(library.settings, "whisper", "small").transcribe("BV1xx411c7XD")
+    )
+    legacy = library.settings.transcripts_ai_dir / f"video-{video_id}.txt"
+    legacy.write_text("旧路径的优化稿。\n", encoding="utf-8")
+
+    with TestClient(app) as client:
+        url = f"/api/videos/{video_id}"
+        versions = client.get(f"{url}/versions").json()
+        first = versions["items"][0]
+        assert first["kind"] == "ai_optimized"
+        assert Path(first["file_path"]).name.startswith(f"Demo-Title-AI优化-{video_id}-")
+        assert client.get(f"{url}/document?version_id={first['id']}").json()["text"] == "旧路径的优化稿。\n"
+        assert len(client.get(f"{url}/versions").json()["items"]) == 2
+
+        Path(versions["ai_output_path"]).write_text("新路径的优化稿。\n", encoding="utf-8")
+        latest = client.get(f"{url}/versions").json()["items"][0]
+        assert client.get(f"{url}/document?version_id={latest['id']}").json()["text"] == "新路径的优化稿。\n"
+        legacy.write_text("旧路径再次修改。\n", encoding="utf-8")
+        assert client.get(f"{url}/versions").json()["items"][0]["id"] == latest["id"]
+        assert client.get(f"{url}/document?version_id={first['id']}").json()["text"] == "旧路径的优化稿。\n"
+
+
+@pytest.mark.parametrize("content", [b"  \n", b"\xff\xfe"])
+def test_invalid_ai_delivery_keeps_saved_transcripts_readable(tmp_path: Path, content: bytes) -> None:
+    app, _, _, library = build_test_app(tmp_path)
+    video_id = library.register_transcript_result(FakePipeline(library.settings, "whisper", "small").transcribe("demo"))
+    delivery = library.ai_output_path(video_id)
+    with TestClient(app) as client:
+        delivery.write_text("有效的优化稿。\n", encoding="utf-8")
+        original_versions = client.get(f"/api/videos/{video_id}/versions").json()["items"]
+        delivery.write_bytes(content)
+        response = client.get(f"/api/videos/{video_id}/versions")
+        assert response.status_code == 200
+        assert response.json()["ai_import_error"]
+        assert response.json()["items"] == original_versions
+        optimized_id = original_versions[0]["id"]
+        assert client.get(f"/api/videos/{video_id}/document?version_id={optimized_id}").json()["text"] == "有效的优化稿。\n"
+        assert client.get(f"/api/videos/{video_id}/document").json()["version_kind"] == "original"
 
 
 def test_api_provider_aware_defaults_and_custom_models(tmp_path, monkeypatch):

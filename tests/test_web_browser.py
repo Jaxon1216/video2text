@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import re
 from datetime import datetime
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -19,7 +20,8 @@ TASK = dict(id="demo", status="running", source_input="BV1xx411c7XD", provider="
 VIDEO = dict(id=1, source_kind="bilibili", source_input=TASK["source_input"],
              source_url="https://www.bilibili.com/video/BV1xx411c7XD", title="线程池笔记",
              engine="faster-whisper", model="small", created_at=TASK["created_at"])
-DOCUMENT = dict(video_id=1, title=VIDEO["title"], platform="bilibili", url=VIDEO["source_url"],
+DOCUMENT = dict(video_id=1, version_id=1, ai_output_path="/tmp/video2text/transcripts/ai/video-1.txt",
+                title=VIDEO["title"], platform="bilibili", url=VIDEO["source_url"],
                 uploader=None, duration=60, engine="faster-whisper", model="small", transcript_source="asr",
                 version_kind="original", text="线程池使用阻塞队列。", has_timestamps=True,
                 segments=[dict(start=0, end=10, text="线程池使用阻塞队列。")])
@@ -57,6 +59,8 @@ def page(request):
                 "tasks/batch": {"items": [TASK, {**TASK, "id": "second"}]},
                 "videos": {"items": [VIDEO]},
                 "videos/1/document": DOCUMENT,
+                "videos/1/versions": {"items": [{"id": 1, "kind": "original", "is_active": True}],
+                                      "ai_output_path": DOCUMENT["ai_output_path"], "ai_import_error": None},
             }
             route.fulfill(json=responses.get(path, {}))
 
@@ -120,7 +124,7 @@ def test_youtube_submission_platform_copy_and_timestamp_link(page):
     expect(page.get_by_text("YouTube", exact=True)).to_be_visible()
     page.get_by_role("button", name="复制线程池笔记的原视频链接").click(force=True)
     assert page.evaluate("window.copied") == youtube_url
-    page.route("**/api/videos/1/document", lambda route: route.fulfill(json={**DOCUMENT, "platform": "youtube", "url": youtube_url}))
+    page.route("**/api/videos/1/document*", lambda route: route.fulfill(json={**DOCUMENT, "platform": "youtube", "url": youtube_url}))
     page.goto(f"{URL}/videos/1")
     expect(page.locator("a.stamp")).to_have_attribute("href", f"{youtube_url}&t=0")
     expect(page.locator("a.stamp")).to_have_attribute("title", "在 YouTube 从这里播放")
@@ -260,10 +264,86 @@ def test_export_confirmation_and_focus(page, label, extension):
 def test_srt_unavailable_without_timestamps(page):
     from playwright.sync_api import expect
 
-    page.route("**/api/videos/1/document", lambda route: route.fulfill(json={**DOCUMENT, "has_timestamps": False, "segments": []}))
+    page.route("**/api/videos/1/document*", lambda route: route.fulfill(json={**DOCUMENT, "has_timestamps": False, "segments": []}))
     page.goto(f"{URL}/videos/1")
     expect(page.get_by_text("SRT", exact=True)).to_have_attribute("title", "没有时间戳，无法导出字幕")
     expect(page.get_by_role("button", name="SRT", exact=True)).to_have_count(0)
+
+
+@pytest.mark.parametrize("page", [{"viewport": {"width": 1280, "height": 900}},
+                                  {"viewport": {"width": 390, "height": 844}}], indirect=True)
+def test_ai_tabs_copy_export_and_refresh_use_selected_version(page):
+    from playwright.sync_api import expect
+
+    latest_id = 2
+    documents = {1: DOCUMENT,
+                 2: {**DOCUMENT, "version_id": 2, "version_kind": "ai_optimized", "has_timestamps": False,
+                     "segments": [], "text": "线程池使用工作队列，复用工作线程。"},
+                 3: {**DOCUMENT, "version_id": 3, "version_kind": "ai_optimized", "has_timestamps": False,
+                     "segments": [], "text": "更新后的 AI 优化稿。"}}
+    page.route("**/api/videos/1/versions", lambda route: route.fulfill(json={
+        "items": [{"id": latest_id, "kind": "ai_optimized", "is_active": False},
+                  {"id": 1, "kind": "original", "is_active": True}],
+        "ai_output_path": DOCUMENT["ai_output_path"], "ai_import_error": None,
+    }))
+    page.route("**/api/videos/1/document*", lambda route: route.fulfill(
+        json=documents[int(parse_qs(urlsplit(route.request.url).query).get("version_id", ["1"])[0])]))
+    exports = []
+    posts = []
+    page.on("request", lambda request: posts.append(request.url) if request.method == "POST" else None)
+    def export(route):
+        exports.append(route.request.url)
+        route.fulfill(body=documents[latest_id]["text"], content_type="text/plain",
+                      headers={"Content-Disposition": 'attachment; filename="demo.txt"'})
+    page.route("**/api/videos/1/export?**", export)
+    page.add_init_script("Object.defineProperty(navigator, 'clipboard', {value: {writeText: async text => {window.copied = text}}})")
+    page.goto(f"{URL}/videos/1")
+    original_tab = page.get_by_role("tab", name="原始稿", exact=True)
+    ai_tab = page.get_by_role("tab", name="AI 优化", exact=True)
+    expect(original_tab).to_have_attribute("aria-selected", "true")
+    expect(page.locator("a.stamp")).to_be_visible()
+    page.get_by_role("button", name="Copy for AI").click()
+    original_copy = page.evaluate("window.copied")
+    assert DOCUMENT["ai_output_path"] in original_copy
+    assert "以 UTF-8 保存到" in original_copy
+    assert "[00:00]" in original_copy
+    original_tab.focus()
+    page.keyboard.press("ArrowRight")
+    expect(ai_tab).to_have_attribute("aria-selected", "true")
+    expect(ai_tab).to_be_focused()
+    expect(page.locator(".transcript")).to_have_text(documents[2]["text"])
+    expect(page.locator("a.stamp")).to_have_count(0)
+    expect(page.get_by_role("button", name="SRT", exact=True)).to_have_count(0)
+    page.get_by_role("button", name="复制全文").click()
+    assert page.evaluate("window.copied") == documents[2]["text"]
+    page.get_by_role("button", name="Copy for AI").click()
+    assert "文字稿来源：AI 优化稿" in page.evaluate("window.copied")
+    page.get_by_role("button", name="TXT", exact=True).click()
+    dialog = page.get_by_role("dialog", name="确认下载")
+    expect(dialog.get_by_role("link", name="确认下载")).to_have_attribute("href", "/api/videos/1/export?format=txt&version_id=2")
+    with page.expect_download():
+        dialog.get_by_role("link", name="确认下载").click()
+    assert parse_qs(urlsplit(exports[0]).query)["version_id"] == ["2"]
+    latest_id = 3
+    page.get_by_role("button", name="刷新稿件", exact=True).click()
+    expect(page.locator(".transcript")).to_have_text(documents[3]["text"])
+    original_tab.click()
+    expect(page.locator("a.stamp")).to_be_visible()
+    expect(page.locator(".transcript")).to_contain_text(DOCUMENT["text"])
+    assert posts == []
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+
+def test_missing_ai_tab_explains_delivery_path_and_hides_copy_actions(page):
+    from playwright.sync_api import expect
+
+    page.goto(f"{URL}/videos/1")
+    page.get_by_role("tab", name="AI 优化", exact=True).click()
+    expect(page.get_by_role("heading", name="还没有 AI 优化稿")).to_be_visible()
+    expect(page.locator(".ai-empty code")).to_have_text(DOCUMENT["ai_output_path"])
+    expect(page.get_by_role("button", name="复制全文")).to_have_count(0)
+    page.get_by_role("tab", name="原始稿", exact=True).click()
+    expect(page.locator("a.stamp")).to_be_visible()
 
 
 def test_copy_link_does_not_navigate_and_local_has_no_button(page):
@@ -392,7 +472,7 @@ def test_qwen_model_can_be_selected_for_retranscription(page):
 def test_old_qwen_transcript_retranscribes_with_available_model(page):
     from playwright.sync_api import expect
 
-    page.route("**/api/videos/1/document", lambda route: route.fulfill(json={
+    page.route("**/api/videos/1/document*", lambda route: route.fulfill(json={
         **DOCUMENT, "engine": "qwen3-asr", "model": "Qwen/Qwen3-ASR-0.6B",
         "has_timestamps": False, "segments": [],
     }))

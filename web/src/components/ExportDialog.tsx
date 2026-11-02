@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import { exportUrl, type ExportFormat } from "../api";
 
-export function ExportDialog({ videoId, title, format, onClose }: {
+export function ExportDialog({ videoId, versionId, title, format, onClose }: {
   videoId: number;
+  versionId: number;
   title: string;
   format: ExportFormat;
   onClose: () => void;
@@ -22,7 +23,7 @@ export function ExportDialog({ videoId, title, format, onClose }: {
       <p id="export-description" className="muted">格式：{format === "md" ? "Markdown" : format.toUpperCase()}。确认后将下载到浏览器的下载目录。</p>
       <div className="actions">
         <button type="button" className="secondary" autoFocus onClick={onClose}>取消</button>
-        <a className="primary" href={exportUrl(videoId, format)} onClick={onClose}>确认下载</a>
+        <a className="primary" href={exportUrl(videoId, format, versionId)} onClick={onClose}>确认下载</a>
       </div>
     </dialog>
   );

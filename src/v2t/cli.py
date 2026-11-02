@@ -16,8 +16,9 @@ from v2t.database import AppDatabase
 from v2t.factory import build_pipeline
 from v2t.formatters import EXPORT_FORMATS, export_document
 from v2t.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, dependency_sync_guidance, resolve_language, tr
-from v2t.inputs import parse_source_list, safe_stem
+from v2t.inputs import parse_source_list
 from v2t.library import WorkspaceLibrary
+from v2t.naming import transcript_filename
 from v2t.tasks import TaskService
 from v2t.user_config import AppConfig, apply_env_overrides
 
@@ -419,7 +420,9 @@ def _write_export(
 ) -> Path:
     document = library.load_document(video_id)
     exported = export_document(document, export_format)
-    target = output.expanduser() if output else settings.exports_dir / f"{safe_stem(document.title)}-{video_id}.{exported.extension}"
+    target = output.expanduser() if output else settings.exports_dir / transcript_filename(
+        document.title, document.version_kind, extension=exported.extension, suffix=str(video_id),
+    )
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(exported.content, encoding="utf-8")
     return target

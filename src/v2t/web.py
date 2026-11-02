@@ -14,9 +14,10 @@ from pydantic import BaseModel
 
 from v2t.database import AppDatabase
 from v2t.formatters import export_document
-from v2t.inputs import parse_source, parse_source_list, safe_stem
+from v2t.inputs import parse_source, parse_source_list
 from v2t.library import WorkspaceLibrary
 from v2t.models import TaskRecord, TranscriptDocument
+from v2t.naming import transcript_filename
 from v2t.tasks import TaskService
 from v2t.user_config import ALL_PROVIDERS, AppConfig
 from v2t.model_catalog import resolve_model
@@ -250,19 +251,21 @@ def create_app(
             return JSONResponse(library.load_active_transcript(video_id))
         return JSONResponse(library.load_transcript_version(video_id, version_id))
 
-    def load_document_or_404(video_id: int) -> TranscriptDocument:
+    def load_document_or_404(video_id: int, version_id: int | None = None) -> TranscriptDocument:
         if database.get_video(video_id) is None:
             raise HTTPException(status_code=404, detail="video not found")
-        return library.load_document(video_id)
+        if version_id is not None and database.get_transcript_version(video_id, version_id) is None:
+            raise HTTPException(status_code=404, detail="transcript version not found")
+        return library.load_document(video_id, version_id)
 
     @app.get("/api/videos/{video_id}/document")
-    async def get_video_document(video_id: int) -> JSONResponse:
-        document = load_document_or_404(video_id)
+    async def get_video_document(video_id: int, version_id: int | None = Query(None)) -> JSONResponse:
+        document = load_document_or_404(video_id, version_id)
         return JSONResponse({**asdict(document), "has_timestamps": document.has_timestamps})
 
     @app.get("/api/videos/{video_id}/segments")
-    async def get_video_segments(video_id: int) -> JSONResponse:
-        document = load_document_or_404(video_id)
+    async def get_video_segments(video_id: int, version_id: int | None = Query(None)) -> JSONResponse:
+        document = load_document_or_404(video_id, version_id)
         return JSONResponse(
             {
                 "video_id": video_id,
@@ -274,13 +277,17 @@ def create_app(
         )
 
     @app.get("/api/videos/{video_id}/export")
-    async def export_video(video_id: int, format: str = Query("txt")) -> Response:
-        document = load_document_or_404(video_id)
+    async def export_video(
+        video_id: int, format: str = Query("txt"), version_id: int | None = Query(None),
+    ) -> Response:
+        document = load_document_or_404(video_id, version_id)
         try:
             exported = export_document(document, format)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        filename = f"{safe_stem(document.title)}.{exported.extension}"
+        filename = transcript_filename(
+            document.title, document.version_kind, extension=exported.extension, suffix=str(video_id),
+        )
         return Response(
             content=exported.content,
             media_type=f"{exported.media_type}; charset=utf-8",
@@ -298,8 +305,19 @@ def create_app(
 
     @app.get("/api/videos/{video_id}/versions")
     async def list_video_versions(video_id: int) -> JSONResponse:
+        if database.get_video(video_id) is None:
+            raise HTTPException(status_code=404, detail="video not found")
+        import_error = None
+        try:
+            library.sync_ai_transcript(video_id)
+        except (OSError, UnicodeError, ValueError) as exc:
+            import_error = f"无法载入 AI 优化稿：{exc}"
         versions = [asdict(version) for version in database.list_transcript_versions(video_id)]
-        return JSONResponse({"items": versions})
+        return JSONResponse({
+            "items": versions,
+            "ai_output_path": str(library.ai_output_path(video_id)),
+            "ai_import_error": import_error,
+        })
 
     @app.get("/api/videos/{video_id}/versions/{version_id}")
     async def get_video_version(video_id: int, version_id: int) -> JSONResponse:

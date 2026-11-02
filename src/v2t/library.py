@@ -4,12 +4,14 @@ import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 
 from v2t.audio_cache import AudioCache
 from v2t.config import Settings
 from v2t.database import AppDatabase
-from v2t.inputs import parse_source, safe_stem
+from v2t.inputs import parse_source
 from v2t.models import REMOTE_SOURCE_KINDS, TranscriptDocument, TranscriptResult
+from v2t.naming import transcript_filename, write_unique_text
 
 
 def sha256_text(text: str) -> str:
@@ -20,6 +22,7 @@ class WorkspaceLibrary:
     def __init__(self, settings: Settings, database: AppDatabase) -> None:
         self.settings = settings
         self.database = database
+        self._ai_import_lock = Lock()
         self.settings.ensure_directories()
 
     def prepare_retranscription_source(self, video_id: int) -> str:
@@ -46,7 +49,7 @@ class WorkspaceLibrary:
             source_input=result.source.raw_input,
             source_url=result.source.url,
             source_bv=result.source.bv,
-            title=(result.metadata.get("download") or {}).get("title") or result.source.display_name,
+            title=result.metadata.get("title") or (result.metadata.get("download") or {}).get("title") or result.source.display_name,
             display_name=result.source.display_name,
             language=result.metadata.get("language"),
             engine=result.engine,
@@ -71,10 +74,13 @@ class WorkspaceLibrary:
         if video is None:
             raise RuntimeError(f"video not found: {video_id}")
 
-        base_name = safe_stem(str(video["display_name"]) or f"video-{video_id}")
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        path = self.settings.transcripts_edited_dir / f"{base_name}-{video_id}-{timestamp}.txt"
-        path.write_text(text.rstrip() + "\n", encoding="utf-8")
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        path = write_unique_text(
+            self.settings.transcripts_edited_dir / transcript_filename(
+                str(video["title"]), "edited", suffix=f"{video_id}-{timestamp}",
+            ),
+            text.rstrip() + "\n",
+        )
         return self.database.create_transcript_version(
             video_id=video_id,
             kind="edited",
@@ -83,6 +89,49 @@ class WorkspaceLibrary:
             char_count=len(text.rstrip() + "\n"),
             is_active=True,
         )
+
+    def ai_output_path(self, video_id: int) -> Path:
+        video = self.database.get_video(video_id)
+        if video is None:
+            raise KeyError(video_id)
+        return (self.settings.transcripts_ai_dir / transcript_filename(
+            str(video["title"]), "ai_optimized", suffix=str(video_id),
+        )).absolute()
+
+    def sync_ai_transcript(self, video_id: int) -> int | None:
+        """Snapshot a changed AI delivery file without changing the active transcript."""
+        if self.database.get_video(video_id) is None:
+            raise KeyError(video_id)
+        with self._ai_import_lock:
+            path = self.ai_output_path(video_id)
+            try:
+                text = path.read_text(encoding="utf-8-sig").strip()
+            except FileNotFoundError:
+                legacy_path = self.settings.transcripts_ai_dir / f"video-{video_id}.txt"
+                try:
+                    text = legacy_path.read_text(encoding="utf-8-sig").strip()
+                except FileNotFoundError:
+                    return None
+            if not text:
+                raise ValueError("AI 优化稿为空，请保存 UTF-8 纯文本正文后刷新。")
+            text += "\n"
+            text_hash = sha256_text(text)
+            latest = next(
+                (version for version in self.database.list_transcript_versions(video_id) if version.kind == "ai_optimized"),
+                None,
+            )
+            if latest is not None and latest.text_sha256 == text_hash:
+                return latest.id
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+            snapshot = write_unique_text(path.with_name(f"{path.stem}-{timestamp}.txt"), text)
+            return self.database.create_transcript_version(
+                video_id=video_id,
+                kind="ai_optimized",
+                file_path=str(snapshot),
+                text_sha256=text_hash,
+                char_count=len(text),
+                is_active=False,
+            )
 
     def load_active_transcript(self, video_id: int) -> dict[str, object]:
         version = self.database.get_active_transcript_version(video_id)
@@ -110,16 +159,19 @@ class WorkspaceLibrary:
         metadata_path = Path(str(video["metadata_path"]))
         return json.loads(metadata_path.read_text(encoding="utf-8"))
 
-    def load_document(self, video_id: int) -> TranscriptDocument:
+    def load_document(self, video_id: int, version_id: int | None = None) -> TranscriptDocument:
         video = self.database.get_video(video_id)
         if video is None:
             raise RuntimeError(f"video not found: {video_id}")
         metadata = self.load_video_metadata(video_id)
-        transcript = self.load_active_transcript(video_id)
+        transcript = (
+            self.load_active_transcript(video_id)
+            if version_id is None else self.load_transcript_version(video_id, version_id)
+        )
         source = metadata.get("source") or {}
         download = metadata.get("download") or {}
         version_kind = str(transcript["kind"])
-        # Edited text no longer lines up with the ASR timings, so only the original version keeps timestamps.
+        # Changed text no longer lines up with the ASR timings.
         segments = list(metadata.get("segments") or []) if version_kind == "original" else []
         return TranscriptDocument(
             video_id=video_id,
@@ -134,6 +186,8 @@ class WorkspaceLibrary:
             version_kind=version_kind,
             text=str(transcript["text"]),
             segments=segments,
+            version_id=int(transcript["version_id"]),
+            ai_output_path=str(self.ai_output_path(video_id)),
         )
 
     def index_existing_workspace(self) -> None:
@@ -154,7 +208,7 @@ class WorkspaceLibrary:
                 source_input=source.get("raw_input") or transcript_path.stem,
                 source_url=source.get("url"),
                 source_bv=source.get("bv"),
-                title=(data.get("download") or {}).get("title") or transcript_path.stem,
+                title=data.get("title") or (data.get("download") or {}).get("title") or transcript_path.stem,
                 display_name=transcript_path.stem,
                 language=data.get("language"),
                 engine=data.get("engine") or "unknown",

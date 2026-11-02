@@ -108,5 +108,7 @@ def _info_rows(document: TranscriptDocument) -> list[tuple[str, str]]:
         rows.append(("作者", document.uploader))
     if document.duration:
         rows.append(("时长", format_timestamp(document.duration)))
+    if document.version_kind in {"edited", "ai_optimized"}:
+        rows.append(("文字稿版本", "AI 优化" if document.version_kind == "ai_optimized" else "编辑稿"))
     rows.append(("转写", f"{document.engine} {document.model}".strip()))
     return rows

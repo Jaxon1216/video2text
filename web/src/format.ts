@@ -149,6 +149,8 @@ export function transcriptBody(document: TranscriptDocument): string {
 }
 
 export function sourceDescription(document: TranscriptDocument): string {
+  if (document.version_kind === "ai_optimized") return "AI 优化稿";
+  if (document.version_kind === "edited") return "编辑稿";
   if (document.transcript_source === "subtitle") {
     return document.model.startsWith("ai-") ? "平台 AI 字幕" : "平台字幕";
   }
@@ -156,7 +158,7 @@ export function sourceDescription(document: TranscriptDocument): string {
 }
 
 function isHumanSubtitle(document: TranscriptDocument): boolean {
-  return document.transcript_source === "subtitle" && !document.model.startsWith("ai-");
+  return document.version_kind === "original" && document.transcript_source === "subtitle" && !document.model.startsWith("ai-");
 }
 
 export function buildCopyForAI(document: TranscriptDocument): string {
@@ -179,7 +181,12 @@ export function buildCopyForAI(document: TranscriptDocument): string {
     ? "下面是一个视频的文字稿，每段开头的 [mm:ss] 是该段在视频中的时间点。请基于这份文字稿回答我接下来的问题；引用内容时请注明对应的时间点。"
     : "下面是一个视频的文字稿。请基于这份文字稿回答我接下来的问题。";
 
-  return [intro, "", ...info, "", "<transcript>", transcriptBody(document), "</transcript>", ""].join("\n");
+  const saveInstruction = document.ai_output_path
+    ? `如果我要求润色修复这份文字稿，请结合上下文修正错别字、语法和专业术语，保留原意，并将优化后的纯文本正文（不含时间戳、提示词和编辑说明）以 UTF-8 保存到：${document.ai_output_path}。如果你能操作文件，请创建所需目录并直接写入；否则请给我可保存的完整正文。保存后，我会在 video2text 详情页点击“刷新稿件”查看 AI 优化稿。`
+    : null;
+
+  return [intro, "", ...info, "", saveInstruction, "", "<transcript>", transcriptBody(document), "</transcript>", ""]
+    .filter(line => line !== null).join("\n");
 }
 
 export function formatDate(iso: string): string {

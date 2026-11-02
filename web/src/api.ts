@@ -66,6 +66,8 @@ export interface Segment {
 
 export interface TranscriptDocument {
   video_id: number;
+  version_id: number;
+  ai_output_path: string;
   title: string;
   platform: string;
   url: string | null;
@@ -78,6 +80,18 @@ export interface TranscriptDocument {
   text: string;
   segments: Segment[];
   has_timestamps: boolean;
+}
+
+export interface TranscriptVersion {
+  id: number;
+  kind: string;
+  is_active: boolean;
+}
+
+export interface TranscriptVersions {
+  items: TranscriptVersion[];
+  ai_output_path: string;
+  ai_import_error: string | null;
 }
 
 export type ExportFormat = "txt" | "plain" | "md" | "srt";
@@ -161,14 +175,19 @@ export async function listVideos(query = ""): Promise<VideoItem[]> {
   return (await request<{ items: VideoItem[] }>(`/api/videos${search}`)).items;
 }
 
-export function getDocument(videoId: number): Promise<TranscriptDocument> {
-  return request<TranscriptDocument>(`/api/videos/${videoId}/document`);
+export function getDocument(videoId: number, versionId?: number): Promise<TranscriptDocument> {
+  const query = versionId === undefined ? "" : `?version_id=${versionId}`;
+  return request<TranscriptDocument>(`/api/videos/${videoId}/document${query}`);
+}
+
+export function getTranscriptVersions(videoId: number): Promise<TranscriptVersions> {
+  return request(`/api/videos/${videoId}/versions`);
 }
 
 export function retranscribeVideo(videoId: number, options: SubmitOptions): Promise<{ task_id: string; status: TaskStatus }> {
   return request(`/api/videos/${videoId}/retranscribe`, { method: "POST", body: JSON.stringify(options) });
 }
 
-export function exportUrl(videoId: number, format: ExportFormat): string {
-  return `/api/videos/${videoId}/export?format=${format}`;
+export function exportUrl(videoId: number, format: ExportFormat, versionId?: number): string {
+  return `/api/videos/${videoId}/export?format=${format}${versionId === undefined ? "" : `&version_id=${versionId}`}`;
 }

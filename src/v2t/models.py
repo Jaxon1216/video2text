@@ -73,6 +73,8 @@ class TranscriptDocument:
     version_kind: str
     text: str
     segments: list[dict[str, Any]] = field(default_factory=list)
+    version_id: int | None = None
+    ai_output_path: str | None = None
 
     @property
     def has_timestamps(self) -> bool:

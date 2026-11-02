@@ -48,6 +48,7 @@ src/v2t/
   pipeline.py       核心流程：字幕或缓存 -> 下载 -> ffmpeg 抽 16k wav -> 转写 -> 写 txt + metadata json（含 segments）
   segments.py       segment 结构 {start, end, text}（秒）与归一化
   formatters.py     导出渲染：带时间戳 txt / plain / md / srt
+  naming.py         文字稿文件名（标题 + 稿件类型）、同名独立写入
   evaluation.py     评测指标：CER、术语召回
   downloaders/      ytdlp.py（B站 + 公共 yt-dlp 配置/进度）、douyin.py（抖音）、youtube.py（字幕优先、音频下载）
   transcribers/     faster_whisper_local.py、whisper_local.py、qwen3_asr_local.py、sensevoice_local.py、volcengine.py
@@ -55,7 +56,7 @@ src/v2t/
   workspace_lock.py 工作区任务服务进程锁（macOS / Linux / Windows）
   logging_config.py 正常轮询 access log 过滤与任务日志配置
   progress.py       阶段进度（stage -> 总进度区间）
-  library.py        把结果登记进视频库、管理转写稿版本、准备重转写来源与旧音频
+  library.py        把结果登记进视频库、管理转写稿版本、同步 AI 优化稿、准备重转写来源与旧音频
   database.py       SQLite：tasks / task_progress_events / videos / transcript_versions / tags / categories
   migrations.py     SQLite 建表与按 PRAGMA user_version 执行的版本迁移
   web.py            FastAPI：/api/* + 托管 web/dist（前端路由回退到 index.html）
@@ -86,6 +87,8 @@ docs/               架构、路线图、决策、平台说明、API
 - **前端页面**：`/` 新建转写、`/tasks` 全部任务、`/videos` 文字稿库；详情沿用 `/tasks/:id`、`/videos/:id`。
 - **任务列表**：按浏览器本地日期分组；今天、昨天和日期未知默认展开，更早日期默认折叠。含排队或运行任务的分组强制展开，手动折叠状态只保留在当前页面会话。
 - **前端**：分段规则（30 秒）必须和 `formatters.py` 保持一致；Copy for AI 的文本格式在 `web/src/format.ts` 的 `buildCopyForAI`。
+- **文字稿命名**：直接用平台解析得到的视频标题，本地来源用原文件名，缺标题沿用来源标识，不分析正文主题。`naming.py` 保留中文、清理非法字符并将文件名中的标题截到 60 字符；原稿为 `标题-原始稿-YYYY-MM-DD_HHMMSS.txt`，AI 交付文件为 `标题-AI优化-视频ID.txt`，CLI / Web 默认导出为 `标题-稿件类型-视频ID.扩展名`。默认原稿、编辑稿和 AI 历史快照使用排他创建，同名追加 `-2`、`-3`，不覆盖已有稿件；显式指定输出路径仍按用户设置写入。
+- **AI 优化稿**：AI 将 UTF-8 纯文本正文保存到 `<工作区>/transcripts/ai/标题-AI优化-视频ID.txt`（以 Copy for AI 提供的后端绝对路径为准）。新交付路径不存在时兼容读取旧 `video-{视频ID}.txt`，新文件存在后优先读取新文件。详情页默认显示最新原始稿，提供“原始稿 / AI 优化”tab；已有 edited 版本另显“编辑稿”。打开页面、切换 tab 或“刷新稿件”时查询版本列表，library 按内容哈希同步交付文件并另存不可变快照（`kind=ai_optimized`），不自动改变 active 原稿。复制与 Web 导出跟随所选版本；AI 优化稿不沿用原稿 segments、不支持 SRT。默认工作区 `.v2t`，本机服务通过 `--workspace` 使用 `data/`；`exports/` 仅用于导出，不作为详情页数据源。
 - 代码风格跟随现有代码：`from __future__ import annotations`、dataclass、类型标注、少量必要注释。
 
 ## 文档同步规则

@@ -64,6 +64,8 @@ def test_pipeline_transcribes_bilibili_source(tmp_path: Path) -> None:
     result = pipeline.transcribe("BV1xx411c7XD")
     assert result.text == "hello from v2t"
     assert result.transcript_path.exists()
+    assert result.transcript_path.name.startswith("demo-title-原始稿-")
+    assert result.metadata["title"] == "demo-title"
     assert result.metadata_path.exists()
     assert result.video_path == video_path
 
@@ -282,5 +284,7 @@ def test_same_title_concurrent_sources_keep_distinct_audio(tmp_path: Path) -> No
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(pipeline.transcribe, ["BV1xx411c7XD", "BV1yy411c7XD"]))
     assert results[0].audio_path != results[1].audio_path
+    assert results[0].transcript_path != results[1].transcript_path
+    assert results[0].metadata_path != results[1].metadata_path
     with wave.open(str(results[0].audio_path), "rb") as first, wave.open(str(results[1].audio_path), "rb") as second:
         assert first.readframes(1) != second.readframes(1)

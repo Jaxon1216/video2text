@@ -317,11 +317,15 @@ YouTube 可直接传 `source: "https://youtu.be/dQw4w9WgXcQ"`，也支持 watch�
 
 `GET /api/videos/{video_id}/document`
 
+支持 `?version_id=2`，省略时仍读取 active 版本；指定版本不存在或不属于该视频返回 404。
+
 一次返回展示与导出需要的全部信息：
 
 ```json
 {
   "video_id": 1,
+  "version_id": 1,
+  "ai_output_path": "/path/to/workspace/transcripts/ai/线程池到底是怎么工作的-AI优化-1.txt",
   "title": "线程池到底是怎么工作的",
   "platform": "douyin",
   "url": "https://www.douyin.com/video/7671185082790530347",
@@ -337,12 +341,15 @@ YouTube 可直接传 `source: "https://youtu.be/dQw4w9WgXcQ"`，也支持 watch�
 }
 ```
 
-- `segments` 单位为秒；当前版本是编辑过的（`version_kind=edited`）或引擎不提供时间戳（SenseVoice）时为空数组。
+- `segments` 单位为秒；编辑稿（`version_kind=edited`）、AI 优化稿（`version_kind=ai_optimized`）或引擎不提供时间戳时为空数组。
+- `version_id` 是实际读取的版本；`ai_output_path` 是后端工作区下的绝对交付路径，使用清理后的标题、`AI优化` 和视频 ID 命名，Copy for AI 使用它提示润色后的文件保存位置。客户端应使用返回的完整路径。
 - `url` 优先使用平台规范链接（例如抖音短链会被换成 `www.douyin.com/video/{id}`）。
 
 ### 5. 查询时间戳 segments
 
 `GET /api/videos/{video_id}/segments`
+
+支持 `?version_id=2`，与 document 使用相同的版本选择和归属校验。
 
 ```json
 {
@@ -360,7 +367,9 @@ Web 在用户确认站内弹窗后才请求导出；API 本身仍直接返回附
 
 `GET /api/videos/{video_id}/export?format=txt|plain|md|srt`
 
-以附件形式返回（`Content-Disposition: attachment; filename*=UTF-8''<标题>.<扩展名>`）：
+可追加 `&version_id=2` 导出指定版本，省略时使用 active 版本。前端始终传当前 tab 的版本 ID；AI 优化稿的 TXT 为纯文本，Markdown 标明 AI 优化版本，SRT 返回 400。
+
+以附件形式返回（`Content-Disposition: attachment; filename*=UTF-8''<标题>-<稿件类型>-<视频ID>.<扩展名>`，文件名按 UTF-8 URL 编码）。标题保留中文、清理非法字符并最多使用 60 字符；稿件类型为 `原始稿`、`编辑稿` 或 `AI优化`，例如 `Redis课程-AI优化-3.md`：
 
 | format | 内容 |
 | --- | --- |
@@ -414,10 +423,14 @@ Qwen3-ASR 1.7B 返回纯文本和空 `segments`；文档的 `has_timestamps` 为
 
 `GET /api/videos/{video_id}/versions`
 
+查询时同步 `ai_output_path` 指定的 `<工作区>/transcripts/ai/标题-AI优化-视频ID.txt`；新路径不存在时兼容旧 `video-{视频ID}.txt`，两者均存在时优先新路径。UTF-8 非空正文相较最新 AI 版本内容变化时，另存带日期时间的不可变快照（同名追加序号）并登记 `kind=ai_optimized`；不改变 active 版本。重复查询相同内容不会生成重复版本。交付文件不存在时正常返回已有版本，空文件、读文件或解码失败时返回 `ai_import_error` 并保留已有稿件；视频不存在返回 404。
+
 响应:
 
 ```json
 {
+  "ai_output_path": "/path/to/workspace/transcripts/ai/线程池到底是怎么工作的-AI优化-1.txt",
+  "ai_import_error": null,
   "items": [
     {
       "id": 4,
@@ -433,6 +446,8 @@ Qwen3-ASR 1.7B 返回纯文本和空 `segments`；文档的 `has_timestamps` 为
   ]
 }
 ```
+
+详情页默认展示最新原始稿，通过 tab 选择最新 AI 优化稿（或已有编辑稿）；tab 不调用 activate。打开页面、切换 tab 和点击“刷新稿件”都会查询此接口，无后台文件监控。`exports/` 中的导出文件不自动入库。
 
 ### 3. 查询单个版本详情
 

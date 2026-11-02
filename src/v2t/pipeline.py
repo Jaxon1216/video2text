@@ -13,6 +13,7 @@ from v2t.config import Settings
 from v2t.downloaders.base import Downloader
 from v2t.inputs import parse_source, safe_stem
 from v2t.models import REMOTE_SOURCE_KINDS, DownloadResult, SourceRef, SubtitleResult, TranscriptResult
+from v2t.naming import transcript_filename, write_unique_text
 from v2t.progress import ProgressReporter, TaskCancelled
 from v2t.segments import join_text
 from v2t.transcribers.base import Transcriber
@@ -127,11 +128,15 @@ class V2TPipeline:
         if progress is not None:
             progress.running("writing_outputs", message="writing_outputs", indeterminate=True)
         transcript_path = self._resolve_output_path(base_name, output)
+        if output is None:
+            transcript_path = write_unique_text(transcript_path, text.strip() + "\n")
+        else:
+            transcript_path.parent.mkdir(parents=True, exist_ok=True)
+            transcript_path.write_text(text.strip() + "\n", encoding="utf-8")
         metadata_path = self._resolve_metadata_path(transcript_path)
-        transcript_path.parent.mkdir(parents=True, exist_ok=True)
-        transcript_path.write_text(text.strip() + "\n", encoding="utf-8")
 
         metadata = {
+            "title": base_name,
             "source": {
                 "raw_input": source.raw_input,
                 "kind": source.kind,
@@ -280,8 +285,10 @@ class V2TPipeline:
 
     def _resolve_output_path(self, base_name: str, output: Path | None) -> Path:
         if output is None:
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-            return self.settings.transcripts_original_dir / f"{safe_stem(base_name)}-{timestamp}-{uuid.uuid4().hex[:12]}.txt"
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+            return self.settings.transcripts_original_dir / transcript_filename(
+                base_name, "original", suffix=timestamp,
+            )
 
         output = output.expanduser()
         if output.suffix.lower() != ".txt":

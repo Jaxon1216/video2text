@@ -39,6 +39,10 @@ class Settings:
             app_db_path=root / "app.db",
         )
 
+    @property
+    def transcripts_ai_dir(self) -> Path:
+        return self.transcripts_dir / "ai"
+
     def ensure_directories(self) -> None:
         for directory in (
             self.workspace_root,
@@ -47,6 +51,7 @@ class Settings:
             self.transcripts_dir,
             self.transcripts_original_dir,
             self.transcripts_edited_dir,
+            self.transcripts_ai_dir,
             self.metadata_dir,
             self.exports_dir,
             self.tasks_dir,

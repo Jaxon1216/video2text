@@ -25,9 +25,9 @@ flowchart LR
 2. 远程来源（bilibili / douyin / youtube）交给 `factory` 按 `kind` 选出的 Downloader。若 `prefer_subtitles`（默认开）先调用 `fetch_subtitles`：拿到平台字幕就跳过下载和 ASR（`transcript_source=subtitle`）。强制 ASR 或无字幕时，先查按平台视频 ID（B站还按分 P）区分的完整 WAV 缓存；未命中才下载媒体。
 3. `pipeline._extract_audio` 用 ffmpeg 转成 16kHz 单声道 wav（本地音频文件跳过这一步）；完整 WAV 通过格式校验后原子写入缓存。不同任务的临时音频名互不冲突。
 4. `Transcriber.transcribe(audio_path, prompt, progress)` 返回 `{"text", "segments", "language", "model", ...}`，其中 `segments` 已归一化为 `[{start, end, text}]`（秒，见 `segments.py`）。Qwen3-ASR 1.7B 每 60 秒音频调用一次官方接口，术语提示走 `context`，单段生成上限 2048 token，返回空 `segments`；每段调用结束后检查取消。
-5. pipeline 写出带时间和随机后缀的独立 `transcripts/original/*.txt`（纯文本）和同名 `metadata/*.json`（来源、下载信息、`transcript_source`、`segments`）。
+5. pipeline 用解析得到的视频标题（本地来源用文件名）写出 `transcripts/original/标题-原始稿-YYYY-MM-DD_HHMMSS.txt`（纯文本）和同名 `metadata/*.json`（实际标题 `title`、来源、下载信息、`transcript_source`、`segments`）。默认稿件使用排他创建，同名追加序号，保证并发任务各自保存结果。
 6. `library.register_transcript_result` 在 SQLite 里登记 video 和当前转写稿版本。
-7. 展示与导出时，`library.load_document(video_id)` 组装 `TranscriptDocument`（元数据 + 当前文本 + segments），交给 `formatters.export_document` 渲染成 txt / plain / md / srt。编辑过的版本不带时间戳。
+7. 展示与导出时，`library.load_document(video_id, version_id=None)` 组装 `TranscriptDocument`（元数据 + 指定或 active 版本文本 + segments），交给 `formatters.export_document` 渲染成 txt / plain / md / srt。编辑稿和 AI 优化稿不带时间戳。
 
 ## 远程媒体怎么拿到
 
@@ -83,6 +83,7 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 | `models.py` | 纯数据类，无业务逻辑；`TranscriptDocument` 是导出和以后 AI 功能的统一输入 |
 | `segments.py` | segment 结构与各引擎输出的归一化 |
 | `formatters.py` | 纯函数：时间戳格式化、按 30 秒合并段落、txt / md / srt 渲染 |
+| `naming.py` | 共用文字稿命名：保留中文标题、清理非法字符、标题截到 60 字符、追加稿件类型及日期或视频 ID；原稿和历史版本同名时排他创建并追加序号 |
 | `downloaders/` | `Downloader.download(...) -> DownloadResult`；可选 `fetch_subtitles(...) -> SubtitleResult \| None`（B站与 YouTube 实现，抖音返回 None）；ytdlp.py 共享 Cookie/进度/文件路径逻辑 |
 | `transcribers/` | `Transcriber.transcribe(audio_path, prompt, progress) -> dict` |
 | `factory.py` | 组装 pipeline：provider -> Transcriber（按 provider + model + 配置缓存，模型只加载一次），kind -> Downloader |
@@ -90,7 +91,7 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 | `tasks.py` | 工作区排他锁 + `ThreadPoolExecutor`（并发数 `V2T_TASK_WORKERS`，默认 1）；提交新转写、换模型重转写和原参数重试任务，管理取消令牌，把进度快照写库并通知监听者 |
 | `workspace_lock.py` | 跨进程工作区锁，macOS / Linux 使用 `flock`，Windows 使用文件字节锁；进程退出自动释放 |
 | `progress.py` | 各阶段占总进度的区间：preparing / downloading / extracting_audio / transcribing / writing_outputs / indexing |
-| `library.py` | 登记结果、编辑后另存新版本、启动时扫描工作区补索引；重转写前核对来源并导入可复用旧音频 |
+| `library.py` | 登记结果、编辑后另存新版本、同步 AI 交付稿为历史版本、启动时扫描工作区补索引；重转写前核对来源并导入可复用旧音频 |
 | `database.py` | SQLite 连接、查询与写入 |
 | `migrations.py` | SQLite 表结构与版本迁移；启动时由 `AppDatabase` 调用 |
 | `web.py` | FastAPI：`/api/*`（接口见 `docs/api.md`）+ 托管 `web/dist`，非 API 路径回退到 `index.html`；没构建时返回提示页 |
@@ -111,18 +112,23 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
   audio/cache/         按来源索引的完整 WAV 与 manifest（损坏文件不会命中）
   transcripts/original 原始转写稿
   transcripts/edited   Web 上编辑后另存的版本
+  transcripts/ai       AI 交付文件 标题-AI优化-{id}.txt，以及带日期的独立历史快照
   metadata/            每次转写的 metadata json（来源、引擎、下载信息、segments）
   exports/             CLI 导出的 txt / md / srt
   browser/             抖音解析用的持久化浏览器目录
 ```
 
-本地文件是真实数据源，SQLite 只做索引；数据库里存的是相对工作区的路径。
+本地文件是真实数据源，SQLite 只做索引；数据库里路径随工作区传入值保存，AI 交付路径与快照使用绝对路径。默认工作区是 `.v2t`，本机服务使用 `--workspace /Users/bytedance/code/Easton/video2text/data`，因此实际数据位于 `data/`。
+
+AI 润色通过外部助手完成。Copy for AI 包含条件式保存指令：用户要求润色修复时，将 UTF-8 纯文本正文写到 `<工作区>/transcripts/ai/标题-AI优化-视频ID.txt`，使用后端返回的准确路径。版本列表 API 调用 `library.sync_ai_transcript`：新路径不存在时兼容旧 `video-{视频ID}.txt`，读取后规范化首尾空白并按 SHA-256 与最新 AI 版本去重，内容变化则写出带秒级日期时间的快照，同名追加序号，并登记 `ai_optimized` 版本。导入在 library 内串行执行，不覆盖旧文件，不改变 active 指针；空文件或解码失败通过 `ai_import_error` 提示，历史稿仍可用。不存在交付文件时保留已有版本。无需监控进程或 AI 服务。
+
+CLI 和 Web 默认导出统一使用 `标题-稿件类型-视频ID.扩展名`，区分原始稿、编辑稿和 AI 优化稿。命名只复用已有标题，不调用 AI 或分析正文；正文及数据库标题保留全文，文件名中的标题最多 60 字符。显式指定输出路径时继续使用用户设置。已有原稿及历史快照仍按数据库记录的路径读取，无需改名或迁移数据库。
 
 ## 数据库表
 
 - `tasks` / `task_progress_events`：任务状态、原始识别选项、取消请求与进度事件；持有工作区进程锁的服务启动时将遗留活跃任务标为失败
 - `videos`：一条转写结果（`source_kind`、来源、标题、引擎、文件路径、当前版本指针）
-- `transcript_versions`：`kind=original|edited`，每个版本一个文件
+- `transcript_versions`：`kind=original|edited|ai_optimized`，每个版本一个文件；AI 类型复用现有 TEXT 字段，无需表结构迁移
 - `categories` / `tags` / `video_tags`：分类与标签
 
 `tasks.kind` 与 `transcript_versions.kind` 是以后扩展"总结 / 分章节"等新任务、新产物的挂载点。
@@ -161,6 +167,8 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 `logging_config.py` 只过滤成功的任务列表/详情/进度和文字稿列表 GET 日志，异常请求与导出等其他请求保留。`tasks.py` 按任务阶段变化记录日志，失败为 ERROR，不按百分比刷屏。
 
 文字稿详情用原生 `<dialog>` 提供站内导出确认，浏览器负责焦点约束；组件关闭后恢复原按钮焦点，确认后才访问导出接口。
+
+详情页默认选择最新原始稿，可切到最新 AI 优化稿或已有编辑稿，支持键盘方向键切换。页面打开、切换和“刷新稿件”都重新查询版本列表以同步 AI 文件；tab 只影响浏览，不激活数据库版本。document、segments 和 export API 接受 `version_id` 并校验视频归属；复制和下载使用正在显示的版本，原稿保留时间戳，AI 优化稿只显示纯文本。没有优化稿时展示交付路径，加载失败时禁止复制旧稿。CLI 和未指定版本的 API 继续使用 active 版本。
 
 文字稿列表的原链接复制按钮与详情链接独立，支持悬停、键盘与触屏，反馈复制结果；本地文件不显示该操作。
 
