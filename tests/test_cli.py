@@ -1,7 +1,7 @@
 from typer.testing import CliRunner
 import pytest
 
-from v2t.cli import app
+from v2t.entrypoints.cli import app
 
 
 runner = CliRunner()
@@ -45,7 +45,7 @@ def test_bootstrap_sync_only_requires_existing_config(tmp_path) -> None:
 
 
 def test_cli_runtime_provider_override_uses_provider_model(tmp_path):
-    from v2t.cli import _load_runtime
+    from v2t.entrypoints.cli import _load_runtime
     from v2t.config import Settings
     from v2t.user_config import AppConfig
     settings = Settings.from_workspace(tmp_path)
@@ -63,9 +63,9 @@ def test_cli_persists_effective_asr_options_and_releases_lock_after_failure(
 ):
     from types import SimpleNamespace
     from v2t.config import Settings
-    from v2t.database import AppDatabase
-    from v2t.library import WorkspaceLibrary
-    from v2t.tasks import TaskService
+    from v2t.storage.database import AppDatabase
+    from v2t.services.library import WorkspaceLibrary
+    from v2t.services.tasks import TaskService
     from v2t.user_config import AppConfig
     settings = Settings.from_workspace(tmp_path)
     AppConfig(prefer_subtitles=prefer_subtitles).save(settings)
@@ -73,7 +73,7 @@ def test_cli_persists_effective_asr_options_and_releases_lock_after_failure(
     def transcribe(source, *, force_asr=False, **kwargs):
         options.append(force_asr)
         raise RuntimeError("temporary failure")
-    monkeypatch.setattr("v2t.cli.build_pipeline", lambda **kwargs: SimpleNamespace(transcribe=transcribe))
+    monkeypatch.setattr("v2t.entrypoints.cli.build_pipeline", lambda **kwargs: SimpleNamespace(transcribe=transcribe))
     args = [command, "BV1xx411c7XD", "--prompt", "术语", "--workspace", str(tmp_path)]
     if force_asr:
         args.append("--force-asr")
@@ -89,10 +89,10 @@ def test_cli_persists_effective_asr_options_and_releases_lock_after_failure(
 
 def test_cli_refuses_active_workspace_without_recovering_running_task(tmp_path):
     from v2t.config import Settings
-    from v2t.database import AppDatabase
-    from v2t.library import WorkspaceLibrary
+    from v2t.storage.database import AppDatabase
+    from v2t.services.library import WorkspaceLibrary
     from v2t.models import ProgressSnapshot
-    from v2t.tasks import TaskService
+    from v2t.services.tasks import TaskService
     from v2t.user_config import AppConfig
     settings = Settings.from_workspace(tmp_path)
     AppConfig().save(settings)
@@ -110,9 +110,9 @@ def test_cli_refuses_active_workspace_without_recovering_running_task(tmp_path):
 
 
 def test_cli_service_index_failure_releases_workspace_lock(tmp_path, monkeypatch):
-    from v2t.cli import _build_task_service
+    from v2t.entrypoints.cli import _build_task_service
     from v2t.config import Settings
-    from v2t.tasks import TaskService
+    from v2t.services.tasks import TaskService
     from v2t.user_config import AppConfig
     settings = Settings.from_workspace(tmp_path)
     def fail_index(self):
@@ -126,7 +126,7 @@ def test_cli_service_index_failure_releases_workspace_lock(tmp_path, monkeypatch
 
 
 def test_web_server_start_failure_releases_workspace_lock(tmp_path, monkeypatch):
-    from v2t.cli import _build_task_service
+    from v2t.entrypoints.cli import _build_task_service
     from v2t.config import Settings
     from v2t.user_config import AppConfig
     settings = Settings.from_workspace(tmp_path)

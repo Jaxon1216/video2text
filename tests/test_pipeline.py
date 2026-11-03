@@ -9,7 +9,7 @@ import pytest
 from v2t.config import Settings
 from v2t.downloaders.base import Downloader
 from v2t.models import DownloadResult, SourceRef, SubtitleResult
-from v2t.pipeline import V2TPipeline, _parse_ffmpeg_progress_seconds
+from v2t.services.pipeline import V2TPipeline, _parse_ffmpeg_progress_seconds
 from v2t.progress import ProgressReporter, TaskCancelled
 from v2t.transcribers.base import Transcriber
 
@@ -171,9 +171,9 @@ def test_cancel_during_ffmpeg_terminates_process_and_removes_partial_audio(tmp_p
         def wait(self, timeout=None):
             return 0
 
-    monkeypatch.setattr("v2t.pipeline.shutil.which", lambda name: "/usr/bin/" + name)
-    monkeypatch.setattr("v2t.pipeline._probe_media_duration_seconds", lambda path: 10.0)
-    monkeypatch.setattr("v2t.pipeline.subprocess.Popen", FakeProcess)
+    monkeypatch.setattr("v2t.services.pipeline.shutil.which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr("v2t.services.pipeline._probe_media_duration_seconds", lambda path: 10.0)
+    monkeypatch.setattr("v2t.services.pipeline.subprocess.Popen", FakeProcess)
     pipeline = V2TPipeline(settings=settings, downloaders={}, transcriber=FakeTranscriber())
     with pytest.raises(TaskCancelled):
         pipeline._extract_audio(tmp_path / "video.mp4", "demo", ProgressReporter("task", cancel_event=cancelled))

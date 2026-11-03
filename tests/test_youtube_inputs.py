@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from v2t.audio_cache import AudioCache
+from v2t.storage.audio_cache import AudioCache
 from v2t.config import Settings
 from v2t.factory import build_downloaders
 from v2t.inputs import parse_source

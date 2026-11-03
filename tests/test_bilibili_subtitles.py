@@ -11,7 +11,7 @@ from v2t.downloaders.base import Downloader
 from v2t.downloaders.ytdlp import YtDlpDownloader, parse_subtitle_content, pick_subtitle
 from v2t.inputs import parse_source
 from v2t.models import DownloadResult, SourceRef, SubtitleResult
-from v2t.pipeline import V2TPipeline
+from v2t.services.pipeline import V2TPipeline
 from v2t.segments import parse_bilibili_json, parse_srt
 from v2t.transcribers.base import Transcriber
 

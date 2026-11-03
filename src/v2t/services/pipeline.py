@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
-from v2t.audio_cache import AudioCache
+from v2t.storage.audio_cache import AudioCache
 from v2t.config import Settings
 from v2t.downloaders.base import Downloader
 from v2t.inputs import parse_source, safe_stem

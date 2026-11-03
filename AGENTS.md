@@ -38,30 +38,35 @@ uv run video2text export <视频ID> --format md            # 导出 txt / plain 
 
 ```text
 src/v2t/
-  cli.py            CLI 入口（transcribe/batch/web/server/doctor/bootstrap/language）
+  entrypoints/
+    cli.py          CLI 入口（transcribe/batch/web/server/doctor/bootstrap/language）
+    web.py          FastAPI：/api/* + 托管 web/dist（前端路由回退到 index.html）
+    bootstrap.py    首次运行配置向导
+    cli_progress.py CLI 任务进度展示
+  services/
+    tasks.py        线程池任务服务 + 工作区排他锁 + 原参数重试 + 换模型重转写 + 协作式中断
+    pipeline.py     核心流程：字幕或缓存 -> 下载 -> ffmpeg 抽 16k wav -> 转写 -> 写 txt + metadata json（含 segments）
+    library.py      把结果登记进视频库、管理转写稿版本、同步 AI 优化稿、准备重转写来源与旧音频
+  storage/
+    database.py     SQLite：tasks / task_progress_events / videos / transcript_versions / tags / categories
+    migrations.py   SQLite 建表与按 PRAGMA user_version 执行的版本迁移
+    audio_cache.py  按平台视频 ID / 分 P 缓存完整 16k WAV，支持旧音频导入
+    workspace_lock.py 工作区任务服务进程锁（macOS / Linux / Windows）
+  config.py         工作区路径与目录配置
   inputs.py         输入解析：本地文件 / B站 / 抖音分享文本 / YouTube 单视频链接 -> SourceRef
   models.py         数据类：SourceRef、DownloadResult、TranscriptResult、TranscriptDocument、TaskRecord...
   model_catalog.py  CLI / Web 共用的模型目录与各引擎默认值解析
   model_inventory.py 只读磁盘模型扫描（不联网、不加载权重）
-  audio_cache.py    按平台视频 ID / 分 P 缓存完整 16k WAV，支持旧音频导入
   factory.py        按 provider 组装 Transcriber（按配置缓存复用），按 source.kind 选择 Downloader
-  pipeline.py       核心流程：字幕或缓存 -> 下载 -> ffmpeg 抽 16k wav -> 转写 -> 写 txt + metadata json（含 segments）
   segments.py       segment 结构 {start, end, text}（秒）与归一化
   formatters.py     导出渲染：带时间戳 txt / plain / md / srt
   naming.py         文字稿文件名（标题 + 稿件类型）、同名独立写入
   evaluation.py     评测指标：CER、术语召回
   downloaders/      ytdlp.py（B站 + 公共 yt-dlp 配置/进度）、douyin.py（抖音）、youtube.py（字幕优先、音频下载）
   transcribers/     faster_whisper_local.py、whisper_local.py、qwen3_asr_local.py、sensevoice_local.py、volcengine.py
-  tasks.py          线程池任务服务 + 工作区排他锁 + 原参数重试 + 换模型重转写 + 协作式中断
-  workspace_lock.py 工作区任务服务进程锁（macOS / Linux / Windows）
   logging_config.py 正常轮询 access log 过滤与任务日志配置
   progress.py       阶段进度（stage -> 总进度区间）
-  library.py        把结果登记进视频库、管理转写稿版本、同步 AI 优化稿、准备重转写来源与旧音频
-  database.py       SQLite：tasks / task_progress_events / videos / transcript_versions / tags / categories
-  migrations.py     SQLite 建表与按 PRAGMA user_version 执行的版本迁移
-  web.py            FastAPI：/api/* + 托管 web/dist（前端路由回退到 index.html）
   user_config.py    .v2t/config.json 读写
-  bootstrap.py      首次运行配置向导
   i18n.py           中英文文案
 web/                React 前端：src/api.ts（接口类型）、format.ts（时间戳分段、Copy for AI）、pages/
 scripts/bench_asr.py  ASR 评测脚本（见 docs/benchmark.md）
@@ -72,9 +77,9 @@ docs/good-cases.md   真实视频手动回归清单（链接、步骤、成功/�
 
 ## 核心约定
 
-- **分层边界**：Downloader 只负责"拿到媒体文件 + 元数据"；Transcriber 只负责"音频 -> 文本/segments"；流程编排只在 `pipeline.py`；CLI / Web 只是外壳，不复制业务逻辑。
+- **分层边界**：`entrypoints/` 放 CLI / Web 与入口辅助，`services/` 放任务、流程与文字稿服务，`storage/` 放 SQLite、缓存与进程锁；共享数据类型、配置和纯函数保留在包根目录。Downloader 只负责"拿到媒体文件 + 元数据"；Transcriber 只负责"音频 -> 文本/segments"；流程编排只在 `services/pipeline.py`；CLI / Web 只是外壳，不复制业务逻辑。内部导入使用新包路径，源码分包不改变工作区数据目录。
 - **新增平台**：在 `models.SourceKind` 加类型 → `inputs.py` 识别（不访问网络）→ `downloaders/` 新建实现（平台有字幕就实现 `fetch_subtitles`）→ `factory.py` 注册。不要在 pipeline 里写平台特判。
-- **新增 ASR**：`transcribers/` 新建实现，返回的 `segments` 必须用 `normalize_segments` 归一化 → `factory.py` + `user_config.py` 注册 → `bootstrap.py` / `doctor` 接入。
+- **新增 ASR**：`transcribers/` 新建实现，返回的 `segments` 必须用 `normalize_segments` 归一化 → `factory.py` + `user_config.py` 注册 → `entrypoints/bootstrap.py` / `doctor` 接入。
 - **测试不访问网络**：下载器、云 ASR、浏览器一律 mock；真实链接只用于手动端到端验证。报告验收结果时分清自动化回归、真实网络链路和准确率；真实验证同时记录成功与失败，不能用 mock 通过或单次成功宣称平台稳定可用。
 - **真实回归案例**：`docs/good-cases.md` 在 Git 中保存公开链接、复测步骤、日期、参数和成功/失败摘要，未知条件写“未记录”；媒体、完整文字稿和日志继续留在被忽略的 `data/`、`.v2t/`、`bench/`。案例不自动联网执行，AI 校订稿不直接作为逐字准确率参考稿。
 - **任务中断**：排队任务直接取消，运行任务通过取消令牌在阶段边界和进度检查点停止；不可中断的模型调用返回后丢弃结果。`cancel_requested` 与终态写库须避免竞态。

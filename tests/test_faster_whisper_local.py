@@ -6,7 +6,7 @@ from typing import Any
 
 from v2t.factory import build_transcriber, clear_transcriber_cache
 from v2t.progress import ProgressReporter
-from v2t.tasks import task_workers_from_env
+from v2t.services.tasks import task_workers_from_env
 from v2t.transcribers.faster_whisper_local import (
     CHINESE_STYLE_PROMPT,
     FasterWhisperTranscriber,

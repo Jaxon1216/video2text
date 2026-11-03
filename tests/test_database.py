@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 
 from v2t.config import Settings
-from v2t.database import AppDatabase
-from v2t.library import WorkspaceLibrary
-from v2t.migrations import SCHEMA_STATEMENTS
+from v2t.storage.database import AppDatabase
+from v2t.services.library import WorkspaceLibrary
+from v2t.storage.migrations import SCHEMA_STATEMENTS
 from v2t.models import ProgressSnapshot, SourceRef, TranscriptResult
 
 

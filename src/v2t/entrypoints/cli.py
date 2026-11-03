@@ -8,18 +8,18 @@ from pathlib import Path
 import typer
 
 from v2t import __version__
-from v2t.bootstrap import ensure_bootstrap, run_bootstrap
-from v2t.cli_progress import TqdmTaskRenderer
+from v2t.entrypoints.bootstrap import ensure_bootstrap, run_bootstrap
+from v2t.entrypoints.cli_progress import TqdmTaskRenderer
 from v2t.config import Settings
 from v2t.model_catalog import resolve_model
-from v2t.database import AppDatabase
+from v2t.storage.database import AppDatabase
 from v2t.factory import build_pipeline
 from v2t.formatters import EXPORT_FORMATS, export_document
 from v2t.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, dependency_sync_guidance, resolve_language, tr
 from v2t.inputs import parse_source_list
-from v2t.library import WorkspaceLibrary
+from v2t.services.library import WorkspaceLibrary
 from v2t.naming import transcript_filename
-from v2t.tasks import TaskService
+from v2t.services.tasks import TaskService
 from v2t.user_config import AppConfig, apply_env_overrides
 
 
@@ -345,7 +345,7 @@ def _run_server(*, host: str, port: int, provider: str | None, model: str | None
         )
         raise typer.Exit(code=1) from exc
 
-    from v2t.web import create_app
+    from v2t.entrypoints.web import create_app
 
     service = None
     try:

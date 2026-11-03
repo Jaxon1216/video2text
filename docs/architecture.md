@@ -6,32 +6,32 @@ CLI 优先的 Python 包。CLI、Web 只是外壳，全部通过 `TaskService` �
 
 ```mermaid
 flowchart LR
-    CLI["cli.py"] --> TaskService
-    Web["web.py"] --> TaskService
-    TaskService["tasks.py 线程池"] --> Factory["factory.build_pipeline"]
-    Factory --> Pipeline["pipeline.V2TPipeline"]
+    CLI["entrypoints/cli.py"] --> TaskService
+    Web["entrypoints/web.py"] --> TaskService
+    TaskService["services/tasks.py 线程池"] --> Factory["factory.build_pipeline"]
+    Factory --> Pipeline["services/pipeline.V2TPipeline"]
     Pipeline --> Inputs["inputs.parse_source"]
     Pipeline --> Downloader["downloaders/*"]
     Pipeline --> FFmpeg["ffmpeg 转 16k 单声道 wav"]
     Pipeline --> Transcriber["transcribers/*"]
-    TaskService --> Library["library.py"]
+    TaskService --> Library["services/library.py"]
     Library --> Files["本地文件：txt + metadata json"]
-    Library --> DB["SQLite 索引"]
+    Library --> DB["storage/database.py SQLite 索引"]
 ```
 
 ## 一次转写的数据流
 
 1. `inputs.parse_source(raw)` 把输入解析为 `SourceRef(kind=bilibili|douyin|youtube|video|audio, ...)`。
 2. 远程来源（bilibili / douyin / youtube）交给 `factory` 按 `kind` 选出的 Downloader。若 `prefer_subtitles`（默认开）先调用 `fetch_subtitles`：拿到平台字幕就跳过下载和 ASR（`transcript_source=subtitle`）。强制 ASR 或无字幕时，先查按平台视频 ID（B站还按分 P）区分的完整 WAV 缓存；未命中才下载媒体。
-3. `pipeline._extract_audio` 用 ffmpeg 转成 16kHz 单声道 wav（本地音频文件跳过这一步）；完整 WAV 通过格式校验后原子写入缓存。不同任务的临时音频名互不冲突。
+3. `services.pipeline.V2TPipeline._extract_audio` 用 ffmpeg 转成 16kHz 单声道 wav（本地音频文件跳过这一步）；完整 WAV 通过格式校验后原子写入缓存。不同任务的临时音频名互不冲突。
 4. `Transcriber.transcribe(audio_path, prompt, progress)` 返回 `{"text", "segments", "language", "model", ...}`，其中 `segments` 已归一化为 `[{start, end, text}]`（秒，见 `segments.py`）。Qwen3-ASR 1.7B 每 60 秒音频调用一次官方接口，术语提示走 `context`，单段生成上限 2048 token，返回空 `segments`；每段调用结束后检查取消。
 5. pipeline 用解析得到的视频标题（本地来源用文件名）写出 `transcripts/original/标题-原始稿-YYYY-MM-DD_HHMMSS.txt`（纯文本）和同名 `metadata/*.json`（实际标题 `title`、来源、下载信息、`transcript_source`、`segments`）。默认稿件使用排他创建，同名追加序号，保证并发任务各自保存结果。
-6. `library.register_transcript_result` 在 SQLite 里登记 video 和当前转写稿版本。
-7. 展示与导出时，`library.load_document(video_id, version_id=None)` 组装 `TranscriptDocument`（元数据 + 指定或 active 版本文本 + segments），交给 `formatters.export_document` 渲染成 txt / plain / md / srt。编辑稿和 AI 优化稿不带时间戳。
+6. `services.library.WorkspaceLibrary.register_transcript_result` 在 SQLite 里登记 video 和当前转写稿版本。
+7. 展示与导出时，`services.library.WorkspaceLibrary.load_document(video_id, version_id=None)` 组装 `TranscriptDocument`（元数据 + 指定或 active 版本文本 + segments），交给 `formatters.export_document` 渲染成 txt / plain / md / srt。编辑稿和 AI 优化稿不带时间戳。
 
 ## 远程媒体怎么拿到
 
-`pipeline.py` 先调用 `inputs.py` 的 `parse_source`。这一步只在本机看文本：有 `BV` 或 `bilibili.com` / `b23.tv` 就是 B站，有 `douyin.com` 就是抖音，YouTube 的 watch / youtu.be / shorts / live 录播 / embed 由域名和 11 位 ID 识别并统一成 watch URL；本机已有的音视频文件则不下载。短链是两个 App「复制链接」时自己发的短地址，方便塞进微信和短信；短地址里通常没有 BV 号或视频数字 ID，所以解析阶段只能认出平台，展开留给对应下载器。
+`services/pipeline.py` 先调用 `inputs.py` 的 `parse_source`。这一步只在本机看文本：有 `BV` 或 `bilibili.com` / `b23.tv` 就是 B站，有 `douyin.com` 就是抖音，YouTube 的 watch / youtu.be / shorts / live 录播 / embed 由域名和 11 位 ID 识别并统一成 watch URL；本机已有的音视频文件则不下载。短链是两个 App「复制链接」时自己发的短地址，方便塞进微信和短信；短地址里通常没有 BV 号或视频数字 ID，所以解析阶段只能认出平台，展开留给对应下载器。
 
 远程来源再由 `factory.py` 按 `source.kind` 选下载器。各平台最后都是 HTTP，B站和抖音的差别是这条请求能不能由本仓库自己拼出来。B站可以。抖音的详情请求必须由抖音网页里的脚本签名，终端里直接 curl 过不了人机校验，也带不上签名。配置和报错表在 `docs/platforms/`，取舍在 `docs/decisions.md` 的 D2。
 
@@ -43,9 +43,9 @@ flowchart LR
 
 1. `inputs.py` 抽出 `https://b23.tv/AbCdEf`，记成 B站短链。此时还没有 BV 号。
 2. `downloaders/ytdlp.py` 的 `resolve_source` 跟随跳转，得到 `https://www.bilibili.com/video/BVxxxx`。地址带 `?p=2` 时只处理第 2 P。
-3. `prefer_subtitles` 默认开着。`fetch_subtitles` 向 B站要字幕和标题，不把媒体文件存下来。语言优先人工中文，其次 B站 AI 字幕（`ai-zh`），再英文。弹幕 `danmaku` 和 `live_chat` 丢掉。正文是 SRT 或 B站 JSON，都收成 `{start, end, text}`（秒）。有有效片段就结束：`pipeline.py` 写 txt 和 metadata JSON，`transcript_source=subtitle`，不下载、不抽音频、不跑模型。
+3. `prefer_subtitles` 默认开着。`fetch_subtitles` 向 B站要字幕和标题，不把媒体文件存下来。语言优先人工中文，其次 B站 AI 字幕（`ai-zh`），再英文。弹幕 `danmaku` 和 `live_chat` 丢掉。正文是 SRT 或 B站 JSON，都收成 `{start, end, text}`（秒）。有有效片段就结束：`services/pipeline.py` 写 txt 和 metadata JSON，`transcript_source=subtitle`，不下载、不抽音频、不跑模型。
 4. 没有字幕，或这次指定强制 ASR，才调用同一个文件里的 `download`。它把画面流和声音流合成一个 mp4，存到 `<工作区>/downloads/`。这一步确实把画面也下下来了。
-5. `pipeline.py` 的 `_extract_audio` 用 ffmpeg 只抽出声音，写成 16kHz 单声道 WAV。识别读的是这个 WAV。mp4 留在下载目录，转写不用它的画面。完整 WAV 按 BV 号（B站再加分 P）缓存。
+5. `services/pipeline.py` 的 `_extract_audio` 用 ffmpeg 只抽出声音，写成 16kHz 单声道 WAV。识别读的是这个 WAV。mp4 留在下载目录，转写不用它的画面。完整 WAV 按 BV 号（B站再加分 P）缓存。
 
 B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只给弹幕，字幕列表是空的，流程会落到识别。Cookie 顺序是 `V2T_COOKIE_FILE`、工作区 `cookies.txt`、再 `V2T_COOKIES_FROM_BROWSER`。CDN 经常把代理打成 HTTP 412，所以默认直连，`V2T_USE_PROXY=1` 才走系统代理。这些用 Cookie 和直连就能过，不必先把 B站网页在浏览器里跑起来。
 
@@ -54,7 +54,7 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 输入像 `复制打开抖音，看看【城市夜跑】https://v.douyin.com/iRxxxxxx/`。
 
 1. `inputs.py` 抽出短链。短链里看不出数字 ID。长链 `www.douyin.com/video/{id}` 能直接抽出 ID。
-2. 抖音没有可用字幕，`downloaders/douyin.py` 不实现 `fetch_subtitles`，`pipeline.py` 直接 `download`。
+2. 抖音没有可用字幕，`downloaders/douyin.py` 不实现 `fetch_subtitles`，`services/pipeline.py` 直接 `download`。
 3. `fetch_aweme_detail` 用 Playwright 启动本机 Chrome（没有则用自带 Chromium），打开短链或 `https://www.douyin.com/video/{id}`。Playwright 在这里不是在做页面测试。它启动一个真浏览器，让抖音页面自己的 JavaScript 做人机校验、按当前浏览器指纹计算签名（查询参数里常见 `a_bogus`），再去请求 `/aweme/v1/web/aweme/detail/`。打开页面前就在等这个响应，HTTP 200 时读 body。签名留在页面发出的那条请求上，本仓库不解析、不保存这套算法。
 4. 抄下来的是响应 JSON，有用的部分在 `aweme_detail`：`aweme_id`、`desc`（标题，去掉 `#话题` 和 `@`）、`author.nickname`、`video.duration`（毫秒），以及音频地址。`video.bit_rate_audio` 按码率从低到高，优先最低的纯音频（`main_url`，其次 `backup_url`、`fallback_url`）。没有纯音频才用 `play_addr` 里带画面的 mp4。`images` 表示图文，没有口播，直接报错。没有 `aweme_detail` 而有 `filter_detail.filter_reason`，表示已删除、私密或仅粉丝可见，同样报错。
 5. 浏览器随后关闭。音频地址用 urllib 下载到 `<工作区>/downloads/douyin-{id}.m4a`，必须带 `Referer: https://www.douyin.com/`，否则 CDN 会挂起。这一步才是终端里那种普通请求。默认不下画面；只有退回 `play_addr` 时，mp4 里才有画面，后面同样拆成 WAV。
@@ -74,12 +74,26 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 
 有字幕时，管道只有文字和分段，没有媒体文件。没有字幕时，各平台都留下一个本地媒体文件（B站通常是带画面的 mp4，抖音和 YouTube 优先纯音频）和标题、作者、时长、原页面地址，再变成同一份 WAV 交给转写器。平台差异停在工厂选出的下载器里。前端不读磁盘：任务完成后 API 读 txt 和 metadata JSON，把分段返回给页面。
 
-## 模块职责
+## 源码目录与模块职责
+
+`src/v2t/` 按入口、服务和存储归并现有模块：
+
+```text
+src/v2t/
+  entrypoints/  cli.py、web.py、bootstrap.py、cli_progress.py
+  services/     tasks.py、pipeline.py、library.py
+  storage/      database.py、migrations.py、audio_cache.py、workspace_lock.py
+  downloaders/  平台媒体与字幕获取
+  transcribers/ ASR 引擎
+  ...           共享数据类型、配置、工厂与纯函数
+```
+
+入口调用服务，服务使用存储、下载器和转写器；共享模块保留在包根目录，分包不增加一层包装调用。CLI 的安装入口为 `v2t.entrypoints.cli:main`，`python -m v2t` 调用同一入口；命令和 API 路径保持原样。此次调整只移动 Python 源码，工作区文件及 SQLite 结构继续沿用下文约定。
 
 | 模块 | 职责 |
 | --- | --- |
 | `inputs.py` | 输入识别：本地文件后缀、B站 BV / 链接、抖音分享文本与链接、YouTube 单视频链接 |
-| `audio_cache.py` | 远程音频缓存：来源匹配、WAV 校验、原子发布、旧文字稿音频导入 |
+| `storage/audio_cache.py` | 远程音频缓存：来源匹配、WAV 校验、原子发布、旧文字稿音频导入 |
 | `models.py` | 纯数据类，无业务逻辑；`TranscriptDocument` 是导出和以后 AI 功能的统一输入 |
 | `segments.py` | segment 结构与各引擎输出的归一化 |
 | `formatters.py` | 纯函数：时间戳格式化、按 30 秒合并段落、txt / md / srt 渲染 |
@@ -87,16 +101,17 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 | `downloaders/` | `Downloader.download(...) -> DownloadResult`；可选 `fetch_subtitles(...) -> SubtitleResult \| None`（B站与 YouTube 实现，抖音返回 None）；ytdlp.py 共享 Cookie/进度/文件路径逻辑 |
 | `transcribers/` | `Transcriber.transcribe(audio_path, prompt, progress) -> dict` |
 | `factory.py` | 组装 pipeline：provider -> Transcriber（按 provider + model + 配置缓存，模型只加载一次），kind -> Downloader |
-| `pipeline.py` | 唯一的流程编排处 |
-| `tasks.py` | 工作区排他锁 + `ThreadPoolExecutor`（并发数 `V2T_TASK_WORKERS`，默认 1）；提交新转写、换模型重转写和原参数重试任务，管理取消令牌，把进度快照写库并通知监听者 |
-| `workspace_lock.py` | 跨进程工作区锁，macOS / Linux 使用 `flock`，Windows 使用文件字节锁；进程退出自动释放 |
+| `services/pipeline.py` | 唯一的流程编排处 |
+| `services/tasks.py` | 工作区排他锁 + `ThreadPoolExecutor`（并发数 `V2T_TASK_WORKERS`，默认 1）；提交新转写、换模型重转写和原参数重试任务，管理取消令牌，把进度快照写库并通知监听者 |
+| `storage/workspace_lock.py` | 跨进程工作区锁，macOS / Linux 使用 `flock`，Windows 使用文件字节锁；进程退出自动释放 |
 | `progress.py` | 各阶段占总进度的区间：preparing / downloading / extracting_audio / transcribing / writing_outputs / indexing |
-| `library.py` | 登记结果、编辑后另存新版本、同步 AI 交付稿为历史版本、启动时扫描工作区补索引；重转写前核对来源并导入可复用旧音频 |
-| `database.py` | SQLite 连接、查询与写入 |
-| `migrations.py` | SQLite 表结构与版本迁移；启动时由 `AppDatabase` 调用 |
-| `web.py` | FastAPI：`/api/*`（接口见 `docs/api.md`）+ 托管 `web/dist`，非 API 路径回退到 `index.html`；没构建时返回提示页 |
+| `services/library.py` | 登记结果、编辑后另存新版本、同步 AI 交付稿为历史版本、启动时扫描工作区补索引；重转写前核对来源并导入可复用旧音频 |
+| `storage/database.py` | SQLite 连接、查询与写入 |
+| `storage/migrations.py` | SQLite 表结构与版本迁移；启动时由 `AppDatabase` 调用 |
+| `entrypoints/cli.py` / `entrypoints/cli_progress.py` | Typer 命令与 CLI 任务进度展示 |
+| `entrypoints/web.py` | FastAPI：`/api/*`（接口见 `docs/api.md`）+ 托管 `web/dist`，非 API 路径回退到 `index.html`；没构建时返回提示页 |
 | `web/`（前端） | React SPA：新建转写 `/`、任务列表 `/tasks`、文字稿列表 `/videos`；保留任务与文字稿详情。单条提交进入任务详情，批量进入任务列表；完成后跳转文字稿并提示保存成功 |
-| `user_config.py` / `bootstrap.py` | `config.json` 读写与首次配置向导 |
+| `user_config.py` / `entrypoints/bootstrap.py` | `config.json` 读写与首次配置向导 |
 
 ## 工作区目录
 
@@ -133,7 +148,7 @@ CLI 和 Web 默认导出统一使用 `标题-稿件类型-视频ID.扩展名`，
 
 `tasks.kind` 与 `transcript_versions.kind` 是以后扩展"总结 / 分章节"等新任务、新产物的挂载点。
 
-数据库使用 SQLite `PRAGMA user_version` 标记结构版本。`migrations.py` 在打开工作区时保留已有数据并按版本升级：版本 1 为早期 `tasks` 表补上 `cancel_requested`，版本 2 保存重试所需的术语提示、强制 ASR 设置和重转写来源视频。新库使用同一升级路径建表；已是最新版本的库不会重复执行 DDL。若数据库版本高于当前程序支持的版本，启动会报错，避免旧程序误写新库。迁移中的建表、补列和版本号写入在同一事务中完成。
+数据库使用 SQLite `PRAGMA user_version` 标记结构版本。`storage/migrations.py` 在打开工作区时保留已有数据并按版本升级：版本 1 为早期 `tasks` 表补上 `cancel_requested`，版本 2 保存重试所需的术语提示、强制 ASR 设置和重转写来源视频。新库使用同一升级路径建表；已是最新版本的库不会重复执行 DDL。若数据库版本高于当前程序支持的版本，启动会报错，避免旧程序误写新库。迁移中的建表、补列和版本号写入在同一事务中完成。
 
 同一工作区同时只运行一个 `TaskService`。服务先获取 `.task-service.lock` 的操作系统排他锁，再恢复遗留任务；另一个 CLI / Web 进程启动任务服务会明确报错，不会修改原服务的活跃任务状态。需要同时运行独立服务时使用不同 `--workspace`。服务关闭等待已接受任务结束后释放锁，异常进程退出由操作系统释放；无需手动删除锁文件。CLI 在退出路径关闭服务，Web 在应用生命周期结束时关闭服务。
 
@@ -170,7 +185,7 @@ CLI 和 Web 默认导出统一使用 `标题-稿件类型-视频ID.扩展名`，
 
 任务列表活跃时每 1.5 秒刷新、空闲时每 6 秒刷新；任务详情每 1 秒刷新，终态或 404 停止。断连保留最后快照，每 6 秒重试；文字稿加载错误提供重试入口。请求超时为 15 秒，页面卸载后不再更新状态或安排轮询。
 
-`logging_config.py` 只过滤成功的任务列表/详情/进度和文字稿列表 GET 日志，异常请求与导出等其他请求保留。`tasks.py` 按任务阶段变化记录日志，失败为 ERROR，不按百分比刷屏。
+`logging_config.py` 只过滤成功的任务列表/详情/进度和文字稿列表 GET 日志，异常请求与导出等其他请求保留。`services/tasks.py` 按任务阶段变化记录日志，日志名为 `v2t.services.tasks`，失败为 ERROR，不按百分比刷屏。
 
 文字稿详情用原生 `<dialog>` 提供站内导出确认，浏览器负责焦点约束；组件关闭后恢复原按钮焦点，确认后才访问导出接口。
 

@@ -6,9 +6,9 @@ from datetime import datetime
 from pathlib import Path
 from threading import Lock
 
-from v2t.audio_cache import AudioCache
+from v2t.storage.audio_cache import AudioCache
 from v2t.config import Settings
-from v2t.database import AppDatabase
+from v2t.storage.database import AppDatabase
 from v2t.inputs import parse_source
 from v2t.models import REMOTE_SOURCE_KINDS, TranscriptDocument, TranscriptResult
 from v2t.naming import transcript_filename, write_unique_text

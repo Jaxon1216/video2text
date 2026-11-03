@@ -7,13 +7,13 @@ from pathlib import Path
 from threading import Event, Lock
 from typing import Callable
 
-from v2t.database import AppDatabase
+from v2t.storage.database import AppDatabase
 from v2t.inputs import AUDIO_SUFFIXES, VIDEO_SUFFIXES, parse_source
-from v2t.library import WorkspaceLibrary
+from v2t.services.library import WorkspaceLibrary
 from v2t.models import TaskRecord
-from v2t.pipeline import V2TPipeline
+from v2t.services.pipeline import V2TPipeline
 from v2t.progress import ProgressCallback, ProgressReporter, TaskCancelled
-from v2t.workspace_lock import WorkspaceLock
+from v2t.storage.workspace_lock import WorkspaceLock
 
 
 PipelineFactory = Callable[[str, str], V2TPipeline]

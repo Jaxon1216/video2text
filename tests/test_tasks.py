@@ -7,10 +7,10 @@ import sys
 import pytest
 
 from v2t.config import Settings
-from v2t.database import AppDatabase
-from v2t.library import WorkspaceLibrary
+from v2t.storage.database import AppDatabase
+from v2t.services.library import WorkspaceLibrary
 from v2t.models import SourceRef, TranscriptResult
-from v2t.tasks import TaskService
+from v2t.services.tasks import TaskService
 
 
 class FakePipeline:
@@ -73,7 +73,7 @@ def test_task_stage_logs_do_not_repeat_for_percentage_updates(tmp_path, caplog):
     service = TaskService(database=database, library=WorkspaceLibrary(settings, database), pipeline_factory=None)
     task = database.create_task(kind="transcription", source_input="demo", provider="whisper", model="small")
     reporter = ProgressReporter(task.id, callback=service._handle_progress)
-    with caplog.at_level(logging.INFO, logger="v2t.tasks"):
+    with caplog.at_level(logging.INFO, logger="v2t.services.tasks"):
         reporter.running("transcribing", stage_progress=0.1)
         reporter.running("transcribing", stage_progress=0.9)
         reporter.failed("recognition failed")
@@ -260,10 +260,10 @@ import os
 import sys
 from pathlib import Path
 from v2t.config import Settings
-from v2t.database import AppDatabase
-from v2t.library import WorkspaceLibrary
+from v2t.storage.database import AppDatabase
+from v2t.services.library import WorkspaceLibrary
 from v2t.models import ProgressSnapshot
-from v2t.tasks import TaskService
+from v2t.services.tasks import TaskService
 settings = Settings.from_workspace(Path(sys.argv[1]))
 database = AppDatabase(settings)
 library = WorkspaceLibrary(settings, database)

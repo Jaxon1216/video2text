@@ -6,14 +6,14 @@ from fastapi.testclient import TestClient
 import pytest
 
 from v2t.config import Settings
-from v2t.database import AppDatabase
+from v2t.storage.database import AppDatabase
 from v2t.downloaders.youtube import YouTubeDownloader
-from v2t.library import WorkspaceLibrary
-from v2t.pipeline import V2TPipeline
+from v2t.services.library import WorkspaceLibrary
+from v2t.services.pipeline import V2TPipeline
 from v2t.progress import ProgressReporter
-from v2t.tasks import TaskService
+from v2t.services.tasks import TaskService
 from v2t.transcribers.base import Transcriber
-from v2t.web import create_app
+from v2t.entrypoints.web import create_app
 from test_audio_cache import write_wav
 from test_youtube_downloader import URL, subtitles, track, ydl
 

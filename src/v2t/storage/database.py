@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 
 from v2t.config import Settings
-from v2t.migrations import migrate_database
+from v2t.storage.migrations import migrate_database
 from v2t.models import ProgressSnapshot, TaskRecord, TranscriptVersionRecord
 
 

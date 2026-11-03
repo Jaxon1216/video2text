@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from v2t import bootstrap as bootstrap_module
-from v2t.bootstrap import (
+from v2t.entrypoints import bootstrap as bootstrap_module
+from v2t.entrypoints.bootstrap import (
     build_uv_sync_command,
     collect_required_extras,
     run_bootstrap,

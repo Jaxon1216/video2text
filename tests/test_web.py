@@ -8,13 +8,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from v2t.config import Settings
-from v2t.audio_cache import AudioCache
-from v2t.database import AppDatabase
+from v2t.storage.audio_cache import AudioCache
+from v2t.storage.database import AppDatabase
 from v2t.inputs import parse_source
-from v2t.library import WorkspaceLibrary
+from v2t.services.library import WorkspaceLibrary
 from v2t.models import SourceRef, TranscriptResult
-from v2t.tasks import TaskService
-from v2t.web import create_app
+from v2t.services.tasks import TaskService
+from v2t.entrypoints.web import create_app
 
 
 class FakePipeline:

@@ -12,18 +12,18 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel
 
-from v2t.database import AppDatabase
+from v2t.storage.database import AppDatabase
 from v2t.formatters import export_document
 from v2t.inputs import parse_source, parse_source_list
-from v2t.library import WorkspaceLibrary
+from v2t.services.library import WorkspaceLibrary
 from v2t.models import TaskRecord, TranscriptDocument
 from v2t.naming import transcript_filename
-from v2t.tasks import TaskService
+from v2t.services.tasks import TaskService
 from v2t.user_config import ALL_PROVIDERS, AppConfig
 from v2t.model_catalog import resolve_model
 from v2t.model_inventory import ModelInventory
 
-DEFAULT_WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
+DEFAULT_WEB_DIST = Path(__file__).resolve().parents[3] / "web" / "dist"
 FRONTEND_MISSING_HTML = """<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>video2text</title>
 <body style="font-family: serif; max-width: 40rem; margin: 4rem auto; line-height: 1.8">
 <h1>前端还没有构建</h1>

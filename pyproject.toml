@@ -54,7 +54,7 @@ server = [
   "uvicorn>=0.34.0",
 ]
 [project.scripts]
-video2text = "v2t.cli:main"
+video2text = "v2t.entrypoints.cli:main"
 
 [dependency-groups]
 dev = [

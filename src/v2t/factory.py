@@ -7,7 +7,7 @@ from pathlib import Path
 from v2t.config import Settings
 from v2t.model_catalog import resolve_model
 from v2t.downloaders import Downloader, DouyinDownloader, YtDlpDownloader, YouTubeDownloader
-from v2t.pipeline import V2TPipeline
+from v2t.services.pipeline import V2TPipeline
 from v2t.transcribers import LocalWhisperTranscriber
 from v2t.transcribers.base import Transcriber
 from v2t.user_config import AppConfig
