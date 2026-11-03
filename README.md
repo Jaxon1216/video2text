@@ -106,6 +106,7 @@ docker compose up -d --build   # 然后打开 http://localhost:8000
 - [docs/api.md](docs/api.md)：HTTP API
 - [docs/platforms/](docs/platforms/)：各平台实现细节
 - [docs/benchmark.md](docs/benchmark.md)：本地 / 云端 ASR 评测方法
+- [docs/good-cases.md](docs/good-cases.md)：Redis 等真实视频回归案例、复测步骤与验收边界
 - [docs/docker.md](docs/docker.md)：Docker 部署
 - [docs/roadmap.md](docs/roadmap.md)：路线图
 
