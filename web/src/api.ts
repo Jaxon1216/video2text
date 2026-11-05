@@ -35,6 +35,7 @@ export interface Task {
   model: string;
   prompt: string;
   force_asr: boolean;
+  include_screenshots: boolean;
   retranscribe_video_id: number | null;
   cancel_requested: boolean;
   progress_percent: number;
@@ -88,6 +89,20 @@ export interface TranscriptVersion {
   is_active: boolean;
 }
 
+export interface Screenshot {
+  index: number;
+  time: number;
+  block_index: number | null;
+  url: string;
+}
+
+export interface TranscriptScreenshots {
+  status: "disabled" | "pending" | "ready" | "failed";
+  reason: string | null;
+  sampled_count: number;
+  images: Screenshot[];
+}
+
 export interface TranscriptVersions {
   items: TranscriptVersion[];
   ai_output_path: string;
@@ -134,7 +149,7 @@ export function getConfig(): Promise<AppConfig> {
 }
 
 /** Submits one task per non-empty line; returns the created task ids in order. */
-export async function submitSources(sourceText: string, options: SubmitOptions): Promise<string[]> {
+export async function submitSources(sourceText: string, options: SubmitOptions & { include_screenshots: boolean }): Promise<string[]> {
   const lines = sourceText
     .split("\n")
     .map((line) => line.trim())
@@ -182,6 +197,14 @@ export function getDocument(videoId: number, versionId?: number): Promise<Transc
 
 export function getTranscriptVersions(videoId: number): Promise<TranscriptVersions> {
   return request(`/api/videos/${videoId}/versions`);
+}
+
+export function getScreenshots(videoId: number, versionId: number): Promise<TranscriptScreenshots> {
+  return request(`/api/videos/${videoId}/screenshots?version_id=${versionId}`);
+}
+
+export function illustratedZipUrl(videoId: number, versionId: number): string {
+  return `/api/videos/${videoId}/illustrated.zip?version_id=${versionId}`;
 }
 
 export function retranscribeVideo(videoId: number, options: SubmitOptions): Promise<{ task_id: string; status: TaskStatus }> {

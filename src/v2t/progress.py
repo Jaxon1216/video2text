@@ -22,6 +22,8 @@ STAGE_RANGES: dict[str, tuple[float, float]] = {
     "transcribing": (0.55, 0.9),
     "writing_outputs": (0.9, 0.96),
     "indexing": (0.96, 0.99),
+    "screenshot_media": (0.98, 0.985),
+    "screenshots": (0.985, 0.999),
     "completed": (1.0, 1.0),
     "failed": (0.0, 0.0),
 }

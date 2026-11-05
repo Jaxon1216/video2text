@@ -151,6 +151,16 @@ class DouyinDownloader(Downloader):
         *,
         progress: ProgressReporter | None = None,
     ) -> DownloadResult:
+        return self._download(source, settings, output_dir=None, progress=progress)
+
+    def download_video(
+        self, source: SourceRef, settings: Settings, output_dir: Path, *, progress: ProgressReporter | None = None,
+    ) -> DownloadResult:
+        return self._download(source, settings, output_dir=output_dir, progress=progress)
+
+    def _download(
+        self, source: SourceRef, settings: Settings, *, output_dir: Path | None, progress: ProgressReporter | None,
+    ) -> DownloadResult:
         if source.kind != "douyin":
             raise ValueError("douyin downloader only supports douyin sources")
         settings.ensure_directories()
@@ -169,10 +179,13 @@ class DouyinDownloader(Downloader):
         )
         detail = extract_detail(payload)
         video_id = str(detail.get("aweme_id") or source.video_id or "")
-        audio_urls = select_audio_urls(detail)
-
-        target = settings.downloads_dir / f"douyin-{video_id or 'unknown'}.m4a"
-        self._download_first_available(audio_urls, target, progress=progress)
+        if output_dir is None:
+            urls = select_audio_urls(detail)
+            target = settings.downloads_dir / f"douyin-{video_id or 'unknown'}.m4a"
+        else:
+            urls = select_video_urls(detail)
+            target = output_dir / "video.mp4"
+        self._download_first_available(urls, target, progress=progress)
 
         metadata = build_metadata(detail, fallback_url=page_url)
         return DownloadResult(
@@ -198,7 +211,8 @@ class DouyinDownloader(Downloader):
             except (urllib.error.URLError, OSError) as exc:
                 errors.append(str(exc))
                 target.unlink(missing_ok=True)
-        raise DouyinError(f"抖音音频下载失败（尝试了 {len(urls)} 个地址）：{'; '.join(errors[-2:])}")
+        kind = "视频" if target.suffix == ".mp4" else "音频"
+        raise DouyinError(f"抖音{kind}下载失败（尝试了 {len(urls)} 个地址）：{'; '.join(errors[-2:])}")
 
     def _stream_to_file(self, url: str, target: Path, *, progress: ProgressReporter | None) -> None:
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Referer": REFERER})
@@ -271,6 +285,18 @@ def select_audio_urls(detail: dict[str, Any]) -> list[str]:
     if unique:
         return unique
     raise DouyinError("抖音详情里没有找到可下载的音频或视频地址")
+
+
+def select_video_urls(detail: dict[str, Any]) -> list[str]:
+    if detail.get("images"):
+        raise DouyinError("这是抖音图文作品，没有可供抽帧的视频画面")
+    video = detail.get("video") or {}
+    streams = [video, *(item for item in video.get("bit_rate") or [] if isinstance(item, dict))]
+    urls = [url for stream in streams for url in (stream.get("play_addr") or {}).get("url_list") or []
+            if isinstance(url, str) and url.startswith(("http://", "https://"))]
+    if not urls:
+        raise DouyinError("抖音详情里没有找到带画面的视频地址")
+    return list(dict.fromkeys(urls))
 
 
 def build_metadata(detail: dict[str, Any], *, fallback_url: str) -> dict[str, Any]:

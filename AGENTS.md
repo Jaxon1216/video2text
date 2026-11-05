@@ -46,6 +46,8 @@ src/v2t/
   services/
     tasks.py        线程池任务服务 + 工作区排他锁 + 原参数重试 + 换模型重转写 + 协作式中断
     pipeline.py     核心流程：字幕或缓存 -> 下载 -> ffmpeg 抽 16k wav -> 转写 -> 写 txt + metadata json（含 segments）
+    screenshots.py  FFmpeg 定时取帧、相邻样本去重和原子发布
+    illustrated_export.py  按所选稿件关联截图与阅读段，生成图文 ZIP
     library.py      把结果登记进视频库、管理转写稿版本、同步 AI 优化稿、准备重转写来源与旧音频
   storage/
     database.py     SQLite：tasks / task_progress_events / videos / transcript_versions / tags / categories
@@ -84,10 +86,11 @@ docs/good-cases.md   真实视频手动回归清单（链接、步骤、成功/�
 - **真实回归案例**：`docs/good-cases.md` 在 Git 中保存公开链接、复测步骤、日期、参数和成功/失败摘要，未知条件写“未记录”；媒体、完整文字稿和日志继续留在被忽略的 `data/`、`.v2t/`、`bench/`。案例不自动联网执行，AI 校订稿不直接作为逐字准确率参考稿。
 - **任务中断**：排队任务直接取消，运行任务通过取消令牌在阶段边界和进度检查点停止；不可中断的模型调用返回后丢弃结果。`cancel_requested` 与终态写库须避免竞态。
 - **任务恢复与重试**：一个工作区同时只允许一个任务服务；拿到进程锁后才能恢复遗留任务，CLI / Web 退出时关闭服务并释放锁。失败或已取消任务由后端按持久化的来源、引擎、模型、术语提示和强制 ASR 选项重试，前端不能自行拼接新建请求。本地来源首次提交时固化为绝对路径；旧相对路径任务拒绝重试，提示重新提交。旧记录未保存的提示词和强制 ASR 参数使用默认值。
+- **文字稿配图**：Web 单条/批量转写的 `include_screenshots` 默认关闭。开启才探测和按需补取视频，从 0 秒起每 80 秒取一帧，仅相邻样本去重。先登记正文，配图失败/中断不删原稿，重试中断的配图复用正文。原图和时间清单放在 `screenshots/<原稿元数据指纹>/`，避免重建索引后视频 ID 变化造成错图。网页和图文 ZIP 共用所选版本的段落映射，无时间戳版本使用独立时间线。
 - **音频缓存**：远程来源按平台视频 ID（B站另加分 P）缓存完整 16k WAV；只复用通过格式校验的文件。详情页换模型重转写强制 ASR、独立保存新文字稿；普通新建转写仍字幕优先。
 - **保持简单**：不引入 Redis、消息队列、复杂数据库、登录权限等；SQLite + 线程池足够。确需引入必须先在 `docs/decisions.md` 记录理由。
 - **抖音**：不逆向 `a_bogus` 等签名算法；走 Playwright 浏览器截获（见 `docs/platforms/douyin.md`）。浏览器 UA 必须与实际系统一致（`default_user_agent`），否则详情接口返回空数据。
-- **YouTube MVP**：watch / youtu.be / shorts / live 录播 / embed 统一为单视频 watch URL；不处理播放列表、频道及未完成直播。字幕按人工中文、人工英文、自动中文、自动英文、其他原始语言排序，不自动翻译；失败回退 `yt-dlp bestaudio/best`。字幕与音频默认沿用系统代理，Cookie 配置只用于 yt-dlp 音频路径；详见 `docs/platforms/youtube.md`。
+- **YouTube MVP**：watch / youtu.be / shorts / live 录播 / embed 统一为单视频 watch URL；不处理播放列表、频道及未完成直播。字幕按人工中文、人工英文、自动中文、自动英文、其他原始语言排序，不自动翻译；失败回退 `yt-dlp bestaudio/best`。字幕和媒体获取默认沿用系统代理；Cookie 配置供 yt-dlp 下载音频或补取配图视频，不传给字幕库；详见 `docs/platforms/youtube.md`。
 - **YouTube 验收状态**：2026-10-23 已跑通真实字幕、无字幕 Shorts 回退、缓存音频转写和导出；重新下载出现 SSL EOF，测试进程设置 `HF_HUB_OFFLINE=1` 后也出现模型缓存加载失败，后续同配置成功，根因尚未完全定位。当前为自用 MVP，稳定性与逐字准确率尚未验收通过。
 - **模型配置**：新配置默认 faster-whisper large-v3-turbo，已有配置不迁移；模型档位只在 `model_catalog.py` 定义。扫描只检查文件，不能把文件存在等同于运行可用。
 - **Qwen3-ASR**：当前仅支持 1.7B；旧 0.6B 转写稿保留、旧默认配置运行时切到 1.7B。优先 Apple MPS，不兼容时回退 CPU。音频按 60 秒分段，术语提示传官方 `context`，每段生成上限 2048 token；不接 ForcedAligner，返回空 `segments`，不提供 SRT。

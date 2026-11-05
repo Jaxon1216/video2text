@@ -104,6 +104,7 @@ class TaskRecord:
     workspace_root: str
     prompt: str = ""
     force_asr: bool = False
+    include_screenshots: bool = False
     retranscribe_video_id: int | None = None
     cancel_requested: bool = False
     progress_percent: float = 0.0

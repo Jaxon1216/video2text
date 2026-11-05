@@ -12,12 +12,13 @@ from v2t.storage.audio_cache import AudioCache
 from v2t.storage.database import AppDatabase
 from v2t.inputs import parse_source
 from v2t.services.library import WorkspaceLibrary
+from v2t.services.pipeline import V2TPipeline
 from v2t.models import SourceRef, TranscriptResult
 from v2t.services.tasks import TaskService
 from v2t.entrypoints.web import create_app
 
 
-class FakePipeline:
+class FakePipeline(V2TPipeline):
     def __init__(self, settings: Settings, provider: str, model: str) -> None:
         self.settings = settings
         self.provider = provider

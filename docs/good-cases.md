@@ -20,7 +20,7 @@
 
 | 案例 ID | 输入 | 值得复测的路径 | 最近记录 |
 | --- | --- | --- | --- |
-| `bilibili-redis-course` | [Redis 课程，BV1o4p568Etd](https://www.bilibili.com/video/BV1o4p568Etd/) | 中文长课程、混合技术术语、带时间戳原稿；已有媒体可用于课件抽帧实验 | 2026-11-03 |
+| `bilibili-redis-course` | [Redis 课程，BV1o4p568Etd](https://www.bilibili.com/video/BV1o4p568Etd/) | 中文长课程、混合技术术语、带时间戳原稿；文字稿配图的长课端到端回归 | 2026-11-05 |
 | `youtube-zoo` | [Me at the zoo，jNQXAC9IVRw](https://www.youtube.com/watch?v=jNQXAC9IVRw) | 字幕优先、强制 ASR、完整 WAV 复用、四种导出；保留下载和模型失败记录 | 2026-10-23 |
 | `youtube-shorts-no-subtitles` | [Shorts，BGQWPY4IigY](https://www.youtube.com/shorts/BGQWPY4IigY) | 平台字幕不可用时自动下载音频并转写 | 2026-10-23 |
 
@@ -41,6 +41,15 @@
 | 2026-11-02 | 校订稿与校订说明 | 已纠正术语及补充技术条件；大部分内容未逐段重听音频，没有时间戳，不能当作 CER 的逐字参考稿 |
 | 2026-11-03 | 复用已有视频的图文可行性实验 | 每 5 秒采样，全片 898 次；检测切换后导出 35 张 1080p 图片，页码 01~35；全部 1804 个原始片段保留，HTML / Markdown 正文一致。图片合计约 5.8 MB |
 | 2026-11-03 | 图文阅读与打包 | 桌面及手机预览、原图打开、标题检索、讲解展开和 ZIP 完整性检查通过；标题在实验中逐张查看画面后填写，未验证自动图注或语义选帧 |
+| 2026-11-05 | 首次网页配图端到端，独立工作区 | 本地 MP4 重新识别，`faster-whisper tiny`、中文、beam=1、无术语提示。总用时 93.50 秒，配图阶段 5.98 秒。57 个采样点保留 29 张 1920×1080 图；新稿的 1516 个片段组成 135 个阅读段，逐段与网页及离线 ZIP 一致。未评估 ASR 逐字准确率 |
+| 2026-11-05 | 最终版网页、离线包与短页覆盖 | 用 `faster-whisper small` 重新识别完整视频。总用时 439.82 秒（7 分 20 秒），其中识别 430.64 秒、配图 6.31 秒。新稿 2376 个片段、146 个阅读段；网页和解压后的 Markdown 逐段一致，29 张 JPEG 均为 1920×1080，网页/ZIP 内容哈希和段落位置逐张一致。ZIP 大小 5,321,987 字节 |
+
+最终版参数：中文、CPU int8、beam=1、VAD 开启，术语提示「Redis，MySQL，Redisson，Lua，哨兵，主从复制，Cluster，Stream。」。本次没有评测逐字准确率。
+
+57 个时点（0 至 4480 秒）去重保留 29 张，独立对照历史 35 张课件参考图，匹配到 29 页。把全部 57 帧也与参考图逐张比较，得到同样 29 页；本例的 6 张漏页都在两个采样点之间，不是去重误删。漏页：第 4 页「内存数据库」、11「过期与缓存」、15「锁：从单机到分布式」、20「Lua 脚本」、23「消息队列」、28「持久化与高可用」。参考样稿按 5 秒粒度估计，这些页面各约显示 5–10 秒。在网页与 ZIP 里，`1:04:00` 的第 24 张可以看到主从复制示意图，`1:12:00` 的第 28 张可以看到场景速查卡。
+
+本机交付：[文字稿详情](http://127.0.0.1:8876/videos/2)、[Markdown 和图片 ZIP](../data/redis-illustrated-mvp/exports/video-2/Redis-文字稿图文包.zip)、[逐图验收记录](../data/redis-illustrated-mvp/exports/video-2/Redis-验收.json)。
+
 
 原稿中存在 `release`→`Redis`、`mycircle`→`MySQL`、`乱脚本`→`Lua 脚本` 等术语误识别。`Stream` 既可能是 `String` 的误词，也可能是消息队列章节里的正确术语，不能全篇直接替换。复测时应分别检查术语和上下文。
 
@@ -65,9 +74,13 @@ uv run video2text tx "https://www.bilibili.com/video/BV1o4p568Etd/" \
 3. 同一工作区重复强制 ASR 时是否复用 WAV、跳过下载和抽音频，并独立保存新稿；1804 是历史片段数，不要求未来模型逐次完全一致。
 4. TXT / Markdown / SRT 与所选原稿是否一致；校订或 AI 优化稿不借用原稿时间戳。
 
-课件抽帧仍是 [roadmap 中的待讨论能力](roadmap.md#待讨论课程视频图文文字稿待办2026-11-03)，目前没有正式的图文任务命令。未来实现后再用这个视频回归选帧、去重和正文关联。
+配图回归：用一个独立工作区启动 Web，在新建页粘贴本地 Redis MP4 的绝对路径，勾选「为文字稿配图」并提交。打开原稿，对照 35 页参考清单逐图复核；再从详情页下载图文包，把解压后的 Markdown 阅读段和 JPEG 同网页逐项比较。
 
-本机材料位于 `data/downloads/BV1o4p568Etd.mp4`、`data/metadata/` 中同标题 JSON、`data/exports/Redis-完整课程-校订稿.txt`、`data/exports/Redis-校订说明.md`、`data/exports/Redis-关键帧图文样稿/`。这些位置只用于寻找当前本机证据，不要求其他 checkout 拥有相同文件、视频库编号或缓存文件名。
+本次配图实测运行在 macOS 26.4.1 / arm64，faster-whisper 1.2.1、FFmpeg 9.0.2。Chrome 从新建页提交本地 MP4，模型从本机缓存读取（`HF_HUB_OFFLINE=1`），未访问 B 站；默认 ASR 模型配置没有改变。
+
+本次配图实测使用了独立的 `data/redis-illustrated-mvp/` 工作区。服务未运行时，在仓库根目录执行 `uv run video2text ui --workspace "$PWD/data/redis-illustrated-mvp" --port 8876` 即可查看这次的任务和文字稿。
+
+历史材料位于 `data/downloads/BV1o4p568Etd.mp4`、`data/metadata/` 中同标题 JSON、`data/exports/Redis-完整课程-校订稿.txt`、`data/exports/Redis-校订说明.md`、`data/exports/Redis-关键帧图文样稿/`。这些位置只用于寻找当前本机证据，不要求其他 checkout 拥有相同文件、视频库编号或缓存文件名。
 
 ## youtube-zoo
 

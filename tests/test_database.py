@@ -23,9 +23,9 @@ def test_settings_create_database_and_workspace_directories(tmp_path: Path) -> N
 def test_new_database_has_versioned_schema(tmp_path: Path) -> None:
     database = AppDatabase(Settings.from_workspace(tmp_path / ".v2t"))
     with sqlite3.connect(database.path) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
         columns = {row[1] for row in conn.execute("PRAGMA table_info(tasks)")}
-        assert "cancel_requested" in columns
+        assert {"cancel_requested", "include_screenshots"} <= columns
 
 
 def test_legacy_task_schema_is_upgraded_without_losing_rows(tmp_path: Path) -> None:
@@ -52,7 +52,7 @@ def test_legacy_task_schema_is_upgraded_without_losing_rows(tmp_path: Path) -> N
     database = AppDatabase(settings)
     assert database.get_task("old").id == "old"
     with sqlite3.connect(database.path) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
         assert conn.execute("SELECT cancel_requested FROM tasks WHERE id = 'old'").fetchone()[0] == 0
     AppDatabase(settings)
     assert database.get_task("old").id == "old"
@@ -79,7 +79,7 @@ def test_unversioned_database_preserves_video_and_transcript_version(tmp_path: P
     assert upgraded.get_video(video_id)["title"] == "旧视频"
     assert upgraded.get_active_transcript_version(video_id).id == version_id
     with sqlite3.connect(upgraded.path) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
 
 
 def test_newer_schema_version_is_rejected(tmp_path: Path) -> None:
@@ -109,16 +109,16 @@ def test_v1_database_migrates_retry_parameters_and_preserves_rows(tmp_path: Path
     assert (old.status, old.source_input, old.provider, old.model) == (
         "failed", "BV1xx411c7XD", "whisper", "small"
     )
-    assert (old.prompt, old.force_asr, old.retranscribe_video_id) == ("", False, None)
+    assert (old.prompt, old.force_asr, old.retranscribe_video_id, old.include_screenshots) == ("", False, None, False)
     new = database.create_task(
         kind="transcription", source_input="demo", provider="whisper", model="medium",
-        prompt="术语", force_asr=True, retranscribe_video_id=42,
+        prompt="术语", force_asr=True, retranscribe_video_id=42, include_screenshots=True,
     )
     reopened = AppDatabase(settings)
     loaded = reopened.get_task(new.id)
-    assert (loaded.prompt, loaded.force_asr, loaded.retranscribe_video_id) == ("术语", True, 42)
+    assert (loaded.prompt, loaded.force_asr, loaded.retranscribe_video_id, loaded.include_screenshots) == ("术语", True, 42, True)
     with sqlite3.connect(database.path) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
 
 
 def test_database_persists_task_progress(tmp_path: Path) -> None:

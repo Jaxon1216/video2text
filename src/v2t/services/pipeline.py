@@ -1,21 +1,26 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
+import tempfile
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime
 from pathlib import Path
+from typing import ContextManager
 
 from v2t.storage.audio_cache import AudioCache
 from v2t.config import Settings
 from v2t.downloaders.base import Downloader
-from v2t.inputs import parse_source, safe_stem
+from v2t.inputs import AUDIO_SUFFIXES, VIDEO_SUFFIXES, parse_source, safe_stem
 from v2t.models import REMOTE_SOURCE_KINDS, DownloadResult, SourceRef, SubtitleResult, TranscriptResult
 from v2t.naming import transcript_filename, write_unique_text
 from v2t.progress import ProgressReporter, TaskCancelled
 from v2t.segments import join_text
+from v2t.services import screenshots
+from v2t.services.screenshots import ScreenshotError, probe_video
 from v2t.transcribers.base import Transcriber
 
 
@@ -170,6 +175,96 @@ class V2TPipeline:
             video_path=video_path,
             metadata=metadata,
         )
+
+    def illustrate(
+        self, source: str, asset_key: str, *, video_path: Path | None, progress: ProgressReporter,
+        publish_guard: Callable[[], ContextManager],
+    ) -> None:
+        progress.running("screenshot_media", message="获取配图视频", indeterminate=True)
+        media = self.resolve_screenshot_video(source, video_path=video_path, progress=progress)
+        progress.running("screenshots", message="抽取配图")
+        screenshots.capture_screenshots(
+            self.settings, asset_key, media, check_cancelled=progress.check_cancelled, publish_guard=publish_guard,
+            on_progress=lambda done, total: progress.running(
+                "screenshots", message=f"抽取配图 {done}/{total}", stage_progress=done / total,
+            ),
+        )
+
+    def resolve_screenshot_video(
+        self, source_input: str, *, video_path: Path | None = None, progress: ProgressReporter | None = None,
+    ) -> Path:
+        """Find or fetch a decodable video only after the opt-in transcript has been registered."""
+        check = progress.check_cancelled if progress is not None else None
+        if check:
+            check()
+        for tool in ("ffmpeg", "ffprobe"):
+            if not shutil.which(tool):
+                raise ScreenshotError(f"生成配图需要 {tool}，请先安装 FFmpeg")
+        local = Path(source_input).expanduser()
+        if local.is_absolute() and not local.is_file():
+            raise ScreenshotError("原始本地媒体文件已不存在")
+        source = parse_source(source_input)
+        if source.path is not None:
+            probe_video(source.path, check_cancelled=check)
+            return source.path
+
+        downloader = self.downloaders.get(source.kind)
+        if downloader is None:
+            raise RuntimeError("这个来源暂不支持补取视频画面")
+        cache = AudioCache(self.settings)
+        identity = [source.kind, source.video_id or source.bv or source.url, source.page or 1]
+        key = hashlib.sha256(json.dumps(identity).encode()).hexdigest()
+        root = self.settings.downloads_dir / "screenshot-media"
+        target = root / f"{key}.media"
+        checked: set[Path] = set()
+
+        def usable(path: Path | None) -> bool:
+            if path is None or path in checked or not path.is_file():
+                return False
+            checked.add(path)
+            try:
+                probe_video(path, check_cancelled=check)
+            except ScreenshotError:
+                return False
+            return True
+
+        with cache.lock_for(source):
+            if check:
+                check()
+            # A stopped process may have left a partial download. The source lock
+            # guarantees that no other worker is writing these staging directories.
+            for stale in root.glob(f".{key}-*"):
+                if stale.is_dir() and not stale.is_symlink():
+                    shutil.rmtree(stale)
+            candidates = [video_path, target]
+            stems = downloader.existing_media_stems(source)
+            candidates.extend(path for path in self.settings.downloads_dir.glob("*")
+                              if path.stem in stems and path.suffix.lower() in VIDEO_SUFFIXES | AUDIO_SUFFIXES)
+            for candidate in candidates:
+                if candidate is not None and usable(candidate):
+                    return candidate
+            # A subtitle hit can still have associated media in a previous ASR cache.
+            cached = cache.lookup(source)
+            if cached and cached.video_path and usable(cached.video_path):
+                return cached.video_path
+
+            root.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(dir=root, prefix=f".{key}-") as staging:
+                # Adapter download progress belongs to the ASR path. Here only forward cancellation.
+                reporter = ProgressReporter(progress.task_id, cancel_event=progress.cancel_event) if progress else None
+                if check:
+                    check()
+                result = downloader.download_video(source, self.settings, Path(staging), progress=reporter)
+                if check:
+                    check()
+                media = result.video_path.resolve()
+                if not media.is_relative_to(Path(staging).resolve()) or not media.is_file():
+                    raise RuntimeError("补取视频没有生成可用的媒体文件")
+                probe_video(media, check_cancelled=check)
+                if check:
+                    check()
+                media.replace(target)
+                return target
 
     def _try_subtitles(
         self,

@@ -64,6 +64,8 @@ const STAGE_LABELS: Record<string, string> = {
   transcribing: "语音识别",
   writing_outputs: "保存结果",
   indexing: "整理入库",
+  screenshot_media: "获取配图视频",
+  screenshots: "抽取配图",
   completed: "完成",
   failed: "失败",
 };

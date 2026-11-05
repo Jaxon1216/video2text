@@ -35,6 +35,7 @@ class AppDatabase:
     def create_task(
         self, *, kind: str, source_input: str, provider: str, model: str,
         prompt: str = "", force_asr: bool = False, retranscribe_video_id: int | None = None,
+        include_screenshots: bool = False, video_id: int | None = None,
     ) -> TaskRecord:
         now = utc_now()
         task = TaskRecord(
@@ -47,6 +48,8 @@ class AppDatabase:
             workspace_root=str(self.settings.workspace_root),
             prompt=prompt,
             force_asr=force_asr,
+            include_screenshots=include_screenshots,
+            video_id=video_id,
             retranscribe_video_id=retranscribe_video_id,
             created_at=now,
         )
@@ -56,8 +59,8 @@ class AppDatabase:
                 INSERT INTO tasks (
                     id, kind, status, source_input, provider, model, workspace_root,
                     progress_percent, current_stage, current_message, error_message, created_at,
-                    prompt, force_asr, retranscribe_video_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    prompt, force_asr, retranscribe_video_id, include_screenshots, video_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     task.id,
@@ -75,6 +78,8 @@ class AppDatabase:
                     task.prompt,
                     1 if task.force_asr else 0,
                     task.retranscribe_video_id,
+                    int(include_screenshots),
+                    video_id,
                 ),
             )
         return task
@@ -130,6 +135,18 @@ class AppDatabase:
                     snapshot.updated_at,
                 ),
             )
+
+    def attach_transcript(self, task_id: str, video_id: int) -> None:
+        with self._connect() as conn:
+            conn.execute("UPDATE tasks SET video_id = ? WHERE id = ?", (video_id, task_id))
+
+    def screenshot_task(self, video_id: int) -> TaskRecord | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM tasks WHERE video_id = ? AND include_screenshots = 1 "
+                "ORDER BY created_at DESC LIMIT 1", (video_id,),
+            ).fetchone()
+        return self._task_from_row(row) if row else None
 
     def complete_task(self, task_id: str, *, video_id: int | None = None, message: str = "") -> None:
         now = utc_now()
@@ -499,6 +516,7 @@ class AppDatabase:
             workspace_root=row["workspace_root"],
             prompt=row["prompt"],
             force_asr=bool(row["force_asr"]),
+            include_screenshots=bool(row["include_screenshots"]),
             retranscribe_video_id=row["retranscribe_video_id"],
             cancel_requested=bool(row["cancel_requested"]),
             progress_percent=float(row["progress_percent"]),

@@ -21,6 +21,8 @@ YouTube 已接入 CLI / Web，真实样本已跑通字幕获取、无字幕时�
 5. yt-dlp 先检查视频状态，再以 `bestaudio/best` 下载单视频到 `downloads/youtube-{id}.{ext}`，优先纯音频；无独立音轨时允许带画面的媒体回退。返回标题、作者、时长等元数据。ffmpeg 转完整 16k 单声道 WAV 后按 YouTube 视频 ID 缓存，其他平台相同字符串的 ID 不混用。
 6. 接入现有任务进度、协作式中断、入库与 txt/plain/md/srt 导出。浏览器可复制原链接，点击文字稿时间戳跳到 YouTube 对应位置。
 
+Web 勾选「为文字稿配图」时，先登记文字稿，再检查同一视频 ID 对应的本地媒体。只有字幕、音频或 WAV 缓存时，yt-dlp 按 `bestvideo/best[vcodec!=none]` 补取视频流，沿用原有的单视频、直播状态、Cookie 和系统代理规则。补取的视频单独缓存在 `downloads/screenshot-media/`。画面不可用时仍可打开文字稿。
+
 字幕网络请求默认超时 15 秒；yt-dlp socket 超时 15 秒、下载/提取各最多重试 2 次（多个请求累积耗时可超过 15 秒）。调用期间无法立刻中断时，返回后检查取消令牌并丢弃结果。
 
 ## 安装与运行

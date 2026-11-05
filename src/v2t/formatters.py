@@ -69,7 +69,7 @@ def render_body(document: TranscriptDocument) -> str:
     return document.text.strip()
 
 
-def render_markdown(document: TranscriptDocument) -> str:
+def render_markdown(document: TranscriptDocument, *, illustrations: dict[int | None, list[str]] | None = None) -> str:
     lines = [f"# {document.title}", ""]
     for label, value in _info_rows(document):
         lines.append(f"- {label}：{value}")
@@ -77,11 +77,16 @@ def render_markdown(document: TranscriptDocument) -> str:
     if document.has_timestamps:
         blocks = group_segments(document.segments)  # type: ignore[arg-type]
         with_hours = bool(blocks) and blocks[-1]["end"] >= 3600
-        lines.append(
-            "\n\n".join(f"**[{format_timestamp(block['start'], with_hours=with_hours)}]** {block['text']}" for block in blocks)
-        )
+        paragraphs = []
+        for index, block in enumerate(blocks):
+            paragraphs.append(f"**[{format_timestamp(block['start'], with_hours=with_hours)}]** {block['text']}")
+            if illustrations:
+                paragraphs.extend(illustrations.get(index, []))
+        lines.append("\n\n".join(paragraphs))
     else:
         lines.append(document.text.strip())
+        if illustrations and illustrations.get(None):
+            lines.extend(["", "## 截图时间线", "", "\n\n".join(illustrations[None])])
     return "\n".join(lines).rstrip() + "\n"
 
 

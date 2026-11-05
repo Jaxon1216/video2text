@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA_STATEMENTS: tuple[str, ...] = (
     """CREATE TABLE IF NOT EXISTS tasks (
@@ -109,6 +109,10 @@ def migrate_database(connection: sqlite3.Connection) -> None:
             ):
                 if name not in columns:
                     connection.execute(f"ALTER TABLE tasks ADD COLUMN {name} {definition}")
+        if current < 3:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(tasks)")}
+            if "include_screenshots" not in columns:
+                connection.execute("ALTER TABLE tasks ADD COLUMN include_screenshots INTEGER NOT NULL DEFAULT 0")
         connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         connection.commit()
     except Exception:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from typing import Any
 
 from requests import RequestException, Session
@@ -54,6 +55,16 @@ class YouTubeDownloader(Downloader):
     def download(
         self, source: SourceRef, settings: Settings, *, progress: ProgressReporter | None = None,
     ) -> DownloadResult:
+        return self._download(source, settings, output_dir=None, progress=progress)
+
+    def download_video(
+        self, source: SourceRef, settings: Settings, output_dir: Path, *, progress: ProgressReporter | None = None,
+    ) -> DownloadResult:
+        return self._download(source, settings, output_dir=output_dir, progress=progress)
+
+    def _download(
+        self, source: SourceRef, settings: Settings, *, output_dir: Path | None, progress: ProgressReporter | None,
+    ) -> DownloadResult:
         if source.kind != "youtube":
             raise ValueError("YouTube downloader only supports youtube sources")
         settings.ensure_directories()
@@ -63,8 +74,9 @@ class YouTubeDownloader(Downloader):
 
         options = {
             **build_ydl_options(settings),
-            "format": "bestaudio/best",
-            "outtmpl": str(settings.downloads_dir / "youtube-%(id)s.%(ext)s"),
+            "format": "bestvideo/best[vcodec!=none]" if output_dir is not None else "bestaudio/best",
+            "outtmpl": str(output_dir / "video.%(ext)s" if output_dir is not None
+                           else settings.downloads_dir / "youtube-%(id)s.%(ext)s"),
             "socket_timeout": 15,
             "retries": 2,
             "extractor_retries": 2,
@@ -91,8 +103,9 @@ class YouTubeDownloader(Downloader):
         except TaskCancelled:
             raise
         except DownloadError as exc:
+            kind = "视频" if output_dir is not None else "音频"
             raise RuntimeError(
-                "YouTube 音频下载失败。请检查网络/系统代理并更新 yt-dlp；若需要登录或遇到风控，"
+                f"YouTube {kind}下载失败。请检查网络/系统代理并更新 yt-dlp；若需要登录或遇到风控，"
                 "可配置 V2T_COOKIE_FILE / V2T_COOKIES_FROM_BROWSER；运行 `uv sync` 安装 Deno/EJS，受限视频也可能无法下载。"
                 f"原始错误：{exc}"
             ) from exc

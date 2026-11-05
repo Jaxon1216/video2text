@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
-import { exportUrl, type ExportFormat } from "../api";
+import { exportUrl, illustratedZipUrl, type ExportFormat } from "../api";
 
 export function ExportDialog({ videoId, versionId, title, format, onClose }: {
   videoId: number;
   versionId: number;
   title: string;
-  format: ExportFormat;
+  format: ExportFormat | "zip";
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -20,10 +20,13 @@ export function ExportDialog({ videoId, versionId, title, format, onClose }: {
       <p className="kicker">保存一份文字稿</p>
       <h2 id="export-title">确认下载</h2>
       <p className="export-name">{title}</p>
-      <p id="export-description" className="muted">格式：{format === "md" ? "Markdown" : format.toUpperCase()}。确认后将下载到浏览器的下载目录。</p>
+      <p id="export-description" className="muted">
+        {format === "zip" ? "图文包包含当前稿件的 Markdown、截图和时间清单。" : `格式：${format === "md" ? "Markdown" : format.toUpperCase()}。`}
+        确认后将下载到浏览器的下载目录。
+      </p>
       <div className="actions">
         <button type="button" className="secondary" autoFocus onClick={onClose}>取消</button>
-        <a className="primary" href={exportUrl(videoId, format, versionId)} onClick={onClose}>确认下载</a>
+        <a className="primary" href={format === "zip" ? illustratedZipUrl(videoId, versionId) : exportUrl(videoId, format, versionId)} onClick={onClose}>确认下载</a>
       </div>
     </dialog>
   );

@@ -26,6 +26,8 @@ flowchart LR
 4. 用 urllib 流式下载到 `<工作区>/downloads/douyin-{id}.m4a`，请求头必须带 `Referer: https://www.douyin.com/`（不带会一直挂起）。一个地址失败就换下一个。
 5. 元数据：`desc`（去掉 `#话题` 和 `@` 作为标题）、`author.nickname`、`video.duration`（毫秒转秒）、`caption`（作者文案全文，以后可作为 ASR 提示词）。
 
+Web 勾选「为文字稿配图」时，先检查已有下载能否解码出画面，包括后缀为 `.m4a` 的混流文件。若只有纯音频，会在文字稿登记后重新获取详情，从 `video.play_addr` 或 `video.bit_rate[].play_addr` 获取视频并单独缓存在 `downloads/screenshot-media/`。没有画面地址或下载失败时仍可阅读文字稿。
+
 浏览器 UA 由 `default_user_agent()` 按系统选择：页面签名会带上浏览器指纹，UA 与实际系统不一致（例如 Linux 容器里用 macOS UA）时，详情接口返回 200 但内容为空。
 
 实测（2026-09）：无头模式 + 本机 Chrome，每条解析约 2 秒，不需要登录；5 分钟视频的音频约 1.7MB，下载不到 1 秒。

@@ -32,6 +32,24 @@ class YtDlpDownloader(Downloader):
         *,
         progress=None,
     ) -> DownloadResult:
+        return self._download(source, settings, output_dir=None, progress=progress)
+
+    def existing_media_stems(self, source: SourceRef) -> tuple[str, ...]:
+        if not source.bv:
+            return ()
+        page = source.page or 1
+        part = f"{source.bv}_p{page}"
+        names = (part, f"{part}.NA", f"{part}.{page:02d}", f"{source.bv}.{page:02d}")
+        return (*names, source.bv) if page == 1 else names
+
+    def download_video(
+        self, source: SourceRef, settings: Settings, output_dir: Path, *, progress: ProgressReporter | None = None,
+    ) -> DownloadResult:
+        return self._download(source, settings, output_dir=output_dir, progress=progress)
+
+    def _download(
+        self, source: SourceRef, settings: Settings, *, output_dir: Path | None, progress: ProgressReporter | None,
+    ) -> DownloadResult:
         if source.kind != "bilibili":
             raise ValueError("yt-dlp downloader only supports bilibili sources")
 
@@ -40,6 +58,8 @@ class YtDlpDownloader(Downloader):
         YoutubeDL = _import_youtube_dl()
 
         ydl_opts = self._build_ydl_opts(source, settings)
+        if output_dir is not None:
+            ydl_opts.update(format="bestvideo/best[vcodec!=none]", outtmpl=str(output_dir / "video.%(ext)s"))
         add_download_progress(ydl_opts, progress)
 
         with YoutubeDL(ydl_opts) as ydl:

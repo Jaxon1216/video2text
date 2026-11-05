@@ -68,7 +68,8 @@ SQLite 只负责索引和管理状态，不是唯一数据源。
   "source": "https://www.bilibili.com/video/BV1xx411c7XD",
   "provider": "whisper",
   "model": "small",
-  "prompt": ""
+  "prompt": "",
+  "include_screenshots": false
 }
 ```
 
@@ -89,6 +90,8 @@ YouTube 可直接传 `source: "https://youtu.be/dQw4w9WgXcQ"`，也支持 watch�
 
 完成后 `source_kind` / document 的 `platform` 为 `youtube`；字幕路径 `engine=subtitle`、`model=实际语言代码`、`transcript_source=subtitle`，时间戳可导出 SRT。metadata JSON 的 `download` 还包含 `is_generated` 与 `subtitle_language`。字幕标题/作者通过 oEmbed 尽力获取，失败时标题为 `youtube-{id}`、作者为空；字幕路径时长未知，保持 null。无字幕或字幕请求失败时自动回退 ASR；正在直播/预约/录播尚未处理完成时任务失败并说明原因。重转写接口同样支持 YouTube，强制 ASR 并复用完整 WAV 缓存。
 
+单条和批量均接受可选布尔值 `include_screenshots`（默认 false）。开启时正文先入库，再获取配图视频和抽帧。配图失败不改变正文完成状态；取消配图后任务为 cancelled，保留 video_id。重试中断的任务沿用开关和已入库正文。
+
 ### 2. 批量创建转写任务
 
 `POST /api/tasks/batch`
@@ -100,7 +103,8 @@ YouTube 可直接传 `source: "https://youtu.be/dQw4w9WgXcQ"`，也支持 watch�
   "source_text": "BV1xx411c7XD\nhttps://www.bilibili.com/video/BV1yy411c7XD",
   "provider": "whisper",
   "model": "small",
-  "prompt": ""
+  "prompt": "",
+  "include_screenshots": false
 }
 ```
 
@@ -627,3 +631,9 @@ Qwen3-ASR 1.7B 返回纯文本和空 `segments`；文档的 `has_timestamps` 为
 - 分类 CRUD 与绑定
 - 标签 CRUD 与绑定
 - 视频元数据读取
+
+## 文字稿配图 API
+
+- `GET /api/videos/{video_id}/screenshots?version_id=…`：返回 `status`（disabled / pending / ready / failed）、可空 `reason`、`sampled_count` 与 `images`。`sampled_count` 是去重前的采样数；每张图含 `index`（从 1 起）、`time`（视频秒数）、`block_index`（30 秒阅读段，从 0 起；无时间戳为 null）、`url`。省略版本时使用 active 版本；跨视频的版本返回 404。
+- `GET /api/videos/{video_id}/screenshots/{index}`：返回原尺寸 image/jpeg，不存在则 404。
+- `GET /api/videos/{video_id}/illustrated.zip?version_id=…`：下载所选稿件的 Markdown、`images/*.jpg` 和 `manifest.json`。清单按视频时间排序，包含视频与版本 ID、采样间隔、采样数，以及每张图的时间、段号和包内路径；配图未就绪时返回 409。原有 export 接口格式不变。

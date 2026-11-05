@@ -19,6 +19,7 @@ export function HomePage() {
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [includeScreenshots, setIncludeScreenshots] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +63,7 @@ export function HomePage() {
     setError(null);
     setSubmitting(true);
     try {
-      const ids = await submitSources(source, { provider, model, prompt });
+      const ids = await submitSources(source, { provider, model, prompt, include_screenshots: includeScreenshots });
       setSource("");
       if (ids.length === 1) navigate(`/tasks/${ids[0]}`);
       else navigate("/tasks");
@@ -95,6 +96,11 @@ export function HomePage() {
           rows={4}
           autoFocus
         />
+        <div className="screenshot-option">
+          <label><input type="checkbox" checked={includeScreenshots} onChange={event => setIncludeScreenshots(event.target.checked)}
+            aria-describedby="screenshot-hint" /> 为文字稿配图</label>
+          <span id="screenshot-hint">每 80 秒截一张，相邻画面相似时只留一张。</span>
+        </div>
         <div className="intake-row">
           <button type="button" className="link-button" onClick={() => setShowOptions((value) => !value)}>
             {showOptions ? "收起选项" : "识别选项"}

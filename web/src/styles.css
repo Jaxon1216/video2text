@@ -324,6 +324,19 @@ kbd {
   margin-top: 1rem;
 }
 
+.screenshot-option {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.75rem;
+  margin-top: 0.85rem;
+  font-size: 0.9rem;
+}
+
+.screenshot-option label { cursor: pointer; }
+.screenshot-option input { accent-color: var(--cinnabar); }
+.screenshot-option span { color: var(--ink-soft); font-size: 0.8rem; }
+
 .options {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -752,6 +765,40 @@ kbd {
   white-space: pre-wrap;
 }
 
+.sample-image {
+  margin: 0 0 1.5rem;
+  max-width: 25rem;
+  min-width: 0;
+}
+
+.passage .sample-image { grid-column: 2; }
+.sample-image a { display: block; cursor: zoom-in; }
+.sample-image img {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+.sample-image figcaption {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.sample-image time { font-family: var(--mono); }
+#screenshot-timeline {
+  margin-left: 6rem;
+  border-top: 1px solid var(--rule);
+  scroll-margin-top: 7rem;
+}
+#screenshot-timeline h2 { font-size: 1.25rem; }
+.screenshot-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0 1rem;
+}
+
 .stamp {
   padding-top: 0.35rem;
   font-family: var(--mono);
@@ -887,6 +934,9 @@ a.stamp:hover {
   .passage.plain p {
     grid-column: 1;
   }
+
+  .passage .sample-image { grid-column: 1; }
+  #screenshot-timeline { margin-left: 0; }
 
   .stamp {
     position: static;

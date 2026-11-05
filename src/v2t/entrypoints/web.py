@@ -6,16 +6,20 @@ from contextlib import asynccontextmanager
 from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel
+from starlette.background import BackgroundTask
 
 from v2t.storage.database import AppDatabase
 from v2t.formatters import export_document
 from v2t.inputs import parse_source, parse_source_list
 from v2t.services.library import WorkspaceLibrary
+from v2t.services.illustrated_export import screenshot_view, video_screenshot_key, write_illustrated_zip
+from v2t.services.screenshots import screenshot_path
 from v2t.models import TaskRecord, TranscriptDocument
 from v2t.naming import transcript_filename
 from v2t.services.tasks import TaskService
@@ -44,6 +48,7 @@ class TranscribeTaskRequest(BaseModel):
     provider: str | None = None
     model: str | None = None
     prompt: str = ""
+    include_screenshots: bool = False
 
 
 class BatchTranscribeTaskRequest(BaseModel):
@@ -52,6 +57,7 @@ class BatchTranscribeTaskRequest(BaseModel):
     provider: str | None = None
     model: str | None = None
     prompt: str = ""
+    include_screenshots: bool = False
 
 
 class RetranscribeRequest(BaseModel):
@@ -125,6 +131,7 @@ def create_app(
             provider=provider,
             model=model,
             prompt=payload.prompt,
+            include_screenshots=payload.include_screenshots,
         )
         return JSONResponse({"task_id": task.id, "status": task.status})
 
@@ -145,6 +152,7 @@ def create_app(
             provider=provider,
             model=model,
             prompt=payload.prompt,
+            include_screenshots=payload.include_screenshots,
         )
         return JSONResponse(
             {
@@ -262,6 +270,34 @@ def create_app(
     async def get_video_document(video_id: int, version_id: int | None = Query(None)) -> JSONResponse:
         document = load_document_or_404(video_id, version_id)
         return JSONResponse({**asdict(document), "has_timestamps": document.has_timestamps})
+
+    @app.get("/api/videos/{video_id}/screenshots")
+    def get_screenshots(video_id: int, version_id: int | None = Query(None)) -> dict:
+        return screenshot_view(database, load_document_or_404(video_id, version_id))
+
+    @app.get("/api/videos/{video_id}/screenshots/{index}")
+    def get_screenshot(video_id: int, index: int) -> FileResponse:
+        try:
+            path = screenshot_path(database.settings, video_screenshot_key(database, video_id), index)
+        except (FileNotFoundError, ValueError) as exc:
+            raise HTTPException(status_code=404, detail="screenshot not found") from exc
+        return FileResponse(path, media_type="image/jpeg")
+
+    @app.get("/api/videos/{video_id}/illustrated.zip")
+    def download_illustrated(video_id: int, version_id: int | None = Query(None)) -> FileResponse:
+        document = load_document_or_404(video_id, version_id)
+        view = screenshot_view(database, document)
+        if view["status"] != "ready":
+            raise HTTPException(status_code=409, detail=view["reason"] or "暂无配图")
+        with NamedTemporaryFile(suffix=".zip", delete=False) as handle:
+            path = Path(handle.name)
+        try:
+            write_illustrated_zip(database.settings, video_screenshot_key(database, video_id), document, view, path)
+            name = transcript_filename(document.title, document.version_kind, extension="zip", suffix=f"{video_id}-图文包")
+            return FileResponse(path, filename=name, media_type="application/zip", background=BackgroundTask(path.unlink))
+        except BaseException:
+            path.unlink(missing_ok=True)
+            raise
 
     @app.get("/api/videos/{video_id}/segments")
     async def get_video_segments(video_id: int, version_id: int | None = Query(None)) -> JSONResponse:
@@ -453,6 +489,7 @@ def _submit_transcription_tasks(
     provider: str,
     model: str,
     prompt: str = "",
+    include_screenshots: bool = False,
 ) -> list[TaskRecord]:
     return [
         task_service.submit_transcription(
@@ -460,6 +497,7 @@ def _submit_transcription_tasks(
             provider=provider,
             model=model,
             prompt=prompt,
+            include_screenshots=include_screenshots,
         )
         for source in sources
     ]

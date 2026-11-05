@@ -1,7 +1,10 @@
 import { EngineSelects } from "../components/EngineSelects";
 import { ExportDialog } from "../components/ExportDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getConfig, getDocument, getModels, getTranscriptVersions, retranscribeVideo, type ExportFormat, type ProviderModels, type TranscriptDocument, type TranscriptVersions } from "../api";
+import {
+  getConfig, getDocument, getModels, getScreenshots, getTranscriptVersions, retranscribeVideo,
+  type ExportFormat, type ProviderModels, type Screenshot, type TranscriptDocument, type TranscriptScreenshots, type TranscriptVersions,
+} from "../api";
 import {
   PLATFORM_LABELS,
   buildCopyForAI,
@@ -22,6 +25,18 @@ const VERSION_TABS = [
   { kind: "edited", label: "编辑稿" },
 ];
 
+function SampleImage({ image, withHours }: { image: Screenshot; withHours: boolean }) {
+  const stamp = formatTimestamp(image.time, withHours);
+  return (
+    <figure className="sample-image">
+      <a href={image.url} target="_blank" rel="noreferrer" aria-label={`查看 ${stamp} 的原图`}>
+        <img src={image.url} alt={`视频 ${stamp} 的采样截图`} loading="lazy" decoding="async" />
+      </a>
+      <figcaption>采样截图 · <time dateTime={`PT${image.time}S`}>{stamp}</time></figcaption>
+    </figure>
+  );
+}
+
 export function VideoPage({ videoId }: { videoId: number }) {
   const [document, setDocument] = useState<TranscriptDocument | null>(null);
   const [versions, setVersions] = useState<TranscriptVersions | null>(null);
@@ -29,7 +44,9 @@ export function VideoPage({ videoId }: { videoId: number }) {
   const [loading, setLoading] = useState(true);
   const [refresh, setRefresh] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
+  const [exportFormat, setExportFormat] = useState<ExportFormat | "zip" | null>(null);
+  const [illustrations, setIllustrations] = useState<TranscriptScreenshots | null>(null);
+  const [screenshotError, setScreenshotError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [showRetranscribe, setShowRetranscribe] = useState(false);
   const [catalog, setCatalog] = useState<ProviderModels[]>([]);
@@ -45,6 +62,8 @@ export function VideoPage({ videoId }: { videoId: number }) {
     setLoading(true);
     setError(null);
     setExportFormat(null);
+    setIllustrations(null);
+    setScreenshotError(null);
     getTranscriptVersions(videoId)
       .then(async (loadedVersions) => {
         const selected = loadedVersions.items.find(version => version.kind === versionKind);
@@ -71,6 +90,35 @@ export function VideoPage({ videoId }: { videoId: number }) {
   const tabs = VERSION_TABS.filter(tab => tab.kind !== "edited" || versions?.items.some(version => version.kind === "edited"));
   const selectedVersion = versions?.items.find(version => version.kind === versionKind);
   const available = !loading && !error && selectedVersion?.id === document?.version_id && !!selectedVersion;
+  const versionId = available ? selectedVersion.id : undefined;
+  useEffect(() => {
+    if (versionId === undefined) return;
+    let disposed = false;
+    let timer: number | undefined;
+    const load = async () => {
+      try {
+        const result = await getScreenshots(videoId, versionId);
+        if (disposed) return;
+        setIllustrations(result);
+        if (result.status === "pending") timer = window.setTimeout(load, 2000);
+      } catch (err) {
+        if (!disposed) setScreenshotError((err as Error).message);
+      }
+    };
+    load();
+    return () => { disposed = true; window.clearTimeout(timer); };
+  }, [videoId, versionId, refresh]);
+
+  const imagesByBlock = useMemo(() => {
+    const groups = new Map<number | null, Screenshot[]>();
+    for (const image of illustrations?.images ?? []) {
+      const group = groups.get(image.block_index);
+      if (group) group.push(image);
+      else groups.set(image.block_index, [image]);
+    }
+    return groups;
+  }, [illustrations]);
+  const timeline = imagesByBlock.get(null);
 
   const flash = (message: string) => {
     setToast(message);
@@ -212,6 +260,8 @@ export function VideoPage({ videoId }: { videoId: number }) {
         ) : (
           <span className="chip is-disabled" title="没有时间戳，无法导出字幕">SRT</span>
         )}
+        {illustrations?.status === "ready" &&
+          <button className="chip" onClick={() => setExportFormat("zip")}>下载图文包</button>}
       </div>
 
       {retranscribeError && <p className="error" role="status">{retranscribeError}</p>}
@@ -229,10 +279,14 @@ export function VideoPage({ videoId }: { videoId: number }) {
 
       {exportFormat && <ExportDialog videoId={document.video_id} versionId={document.version_id} title={document.title} format={exportFormat} onClose={() => setExportFormat(null)} />}
 
+      {screenshotError && <p className="notice" role="status">无法读取配图：{screenshotError}。可点击“刷新稿件”重试。</p>}
+      {illustrations?.status === "pending" && <p className="notice" role="status">配图处理中，可以先阅读正文。</p>}
+      {illustrations?.status === "failed" && <p className="notice" role="status">未能生成配图：{illustrations.reason || "无法获取视频画面"}。</p>}
+
       {!document.has_timestamps && (
         <p className="notice">
           {document.version_kind === "ai_optimized" ? "当前是 AI 优化稿，已移除时间戳。复制和下载使用这份稿件。"
-            : document.version_kind === "edited" ? "当前是编辑过的版本，时间戳已不再对应，只显示纯文本。" : "这个识别引擎没有提供时间戳，只显示纯文本。"}
+            : document.version_kind === "edited" ? "当前是编辑稿，正文按纯文本显示。" : "这个识别引擎没有提供时间戳，正文按纯文本显示。"}
         </p>
       )}
 
@@ -244,6 +298,7 @@ export function VideoPage({ videoId }: { videoId: number }) {
         </details>
       )}
 
+      {timeline && <p className="notice"><a href="#screenshot-timeline">查看截图时间线（{timeline.length} 张）</a></p>}
       <div className="transcript">
         {document.has_timestamps ? (
           blocks.map((block, index) => {
@@ -259,6 +314,7 @@ export function VideoPage({ videoId }: { videoId: number }) {
                   <span className="stamp">{stamp}</span>
                 )}
                 <p>{block.text}</p>
+                {imagesByBlock.get(index)?.map(image => <SampleImage key={image.index} image={image} withHours={withHours} />)}
                 <button
                   className="passage-copy"
                   onClick={() => copy(`[${stamp}] ${block.text}`, `已复制 ${stamp} 这一段`)}
@@ -275,6 +331,12 @@ export function VideoPage({ videoId }: { videoId: number }) {
           </section>
         )}
       </div>
+      {timeline && <section id="screenshot-timeline" aria-label="截图时间线">
+        <h2>截图时间线</h2>
+        <div className="screenshot-gallery">
+          {timeline.map(image => <SampleImage key={image.index} image={image} withHours={(document.duration ?? 0) >= 3600} />)}
+        </div>
+      </section>}
       </>}
       </div>
 

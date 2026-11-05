@@ -95,7 +95,8 @@ export function TaskPage({ taskId }: { taskId: string }) {
   const percent = Math.round((task?.progress_percent ?? 0) * 100);
   const failed = task?.status === "failed";
   const terminal = task && ["completed", "failed", "cancelled"].includes(task.status);
-  const currentIndex = task ? PIPELINE_STAGES.indexOf(task.current_stage as (typeof PIPELINE_STAGES)[number]) : -1;
+  const stages: readonly string[] = task?.include_screenshots ? [...PIPELINE_STAGES, "screenshot_media", "screenshots"] : PIPELINE_STAGES;
+  const currentIndex = task ? stages.indexOf(task.current_stage) : -1;
   const detail = task ? messageLabel(task.current_message) : null;
 
   return (
@@ -118,7 +119,7 @@ export function TaskPage({ taskId }: { taskId: string }) {
       </div>
 
       <ol className="stages">
-        {PIPELINE_STAGES.map((stage, index) => {
+        {stages.map((stage, index) => {
           const state =
             task?.status === "completed" || index < currentIndex
               ? "done"
@@ -136,9 +137,10 @@ export function TaskPage({ taskId }: { taskId: string }) {
         })}
       </ol>
 
-      {failed && (
+      {task?.video_id != null && <p><Link href={`/videos/${task.video_id}`}>打开已保存的文字稿</Link></p>}
+      {(failed || task?.status === "cancelled") && (
         <div className="failure">
-          <p className="error">{task?.error_message || "未知错误"}</p>
+          {failed && <p className="error">{task?.error_message || "未知错误"}</p>}
           <div className="actions">
             <button className="primary" onClick={retry} disabled={retrying}>
               {retrying ? "重新提交中…" : "重试"}

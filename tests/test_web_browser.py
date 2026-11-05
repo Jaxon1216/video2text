@@ -59,6 +59,7 @@ def page(request):
                 "tasks/batch": {"items": [TASK, {**TASK, "id": "second"}]},
                 "videos": {"items": [VIDEO]},
                 "videos/1/document": DOCUMENT,
+                "videos/1/screenshots": {"status": "disabled", "reason": None, "sampled_count": 0, "images": []},
                 "videos/1/versions": {"items": [{"id": 1, "kind": "original", "is_active": True}],
                                       "ai_output_path": DOCUMENT["ai_output_path"], "ai_import_error": None},
             }
@@ -88,11 +89,17 @@ def test_navigation_and_submissions(page):
     expect(page.get_by_role("heading", name="线程池笔记")).to_be_visible()
     nav.get_by_role("link", name="新建转写").click()
     page.get_by_label("粘贴链接").fill("BV1xx411c7XD")
-    page.get_by_role("button", name="转成文字").click()
+    expect(page.get_by_role("checkbox", name="为文字稿配图")).not_to_be_checked()
+    with page.expect_request("**/api/tasks/transcribe") as single:
+        page.get_by_role("button", name="转成文字").click()
+    assert single.value.post_data_json["include_screenshots"] is False
     expect(page).to_have_url(f"{URL}/tasks/demo")
     nav.get_by_role("link", name="新建转写").click()
     page.get_by_label("粘贴链接").fill("BV1xx411c7XD\nBV1yy411c7XD")
-    page.get_by_role("button", name="转成文字").click()
+    page.get_by_role("checkbox", name="为文字稿配图").check()
+    with page.expect_request("**/api/tasks/batch") as batch:
+        page.get_by_role("button", name="转成文字").click()
+    assert batch.value.post_data_json["include_screenshots"] is True
     expect(page).to_have_url(f"{URL}/tasks")
 
 
@@ -116,9 +123,10 @@ def test_youtube_submission_platform_copy_and_timestamp_link(page):
     page.goto(URL)
     expect(page.get_by_label("粘贴链接")).to_have_attribute("placeholder", re.compile("YouTube"))
     page.get_by_label("粘贴链接").fill(youtube_url)
+    page.get_by_role("checkbox", name="为文字稿配图").check()
     page.get_by_role("button", name="转成文字").click()
     expect(page).to_have_url(f"{URL}/tasks/demo")
-    assert submitted[0]["source"] == youtube_url
+    assert submitted[0]["source"] == youtube_url and submitted[0]["include_screenshots"] is True
     page.route("**/api/videos", lambda route: route.fulfill(json={"items": [{**VIDEO, "source_kind": "youtube", "source_url": youtube_url}]}))
     page.goto(f"{URL}/videos")
     expect(page.get_by_text("YouTube", exact=True)).to_be_visible()
@@ -268,6 +276,86 @@ def test_srt_unavailable_without_timestamps(page):
     page.goto(f"{URL}/videos/1")
     expect(page.get_by_text("SRT", exact=True)).to_have_attribute("title", "没有时间戳，无法导出字幕")
     expect(page.get_by_role("button", name="SRT", exact=True)).to_have_count(0)
+
+
+@pytest.mark.parametrize("page", [{"viewport": {"width": 1280, "height": 900}},
+                                  {"viewport": {"width": 390, "height": 844}}], indirect=True)
+def test_screenshots_follow_version_and_open_full_image(page):
+    from playwright.sync_api import expect
+
+    segments = [*DOCUMENT["segments"], dict(start=75, end=95, text="第二段示例。")]
+    ai_text = "已优化的两段示例。"
+    image_url = "/api/videos/1/screenshots/1"
+    page.route("**/api/videos/1/versions", lambda route: route.fulfill(json={
+        "items": [{"id": 1, "kind": "original", "is_active": True},
+                  {"id": 2, "kind": "ai_optimized", "is_active": False}],
+        "ai_output_path": DOCUMENT["ai_output_path"], "ai_import_error": None,
+    }))
+
+    def respond_document(route):
+        version = int(parse_qs(urlsplit(route.request.url).query)["version_id"][0])
+        document = {**DOCUMENT, "segments": segments} if version == 1 else {
+            **DOCUMENT, "version_id": 2, "version_kind": "ai_optimized", "segments": [],
+            "has_timestamps": False, "text": ai_text,
+        }
+        route.fulfill(json=document)
+
+    def respond_manifest(route):
+        version = int(parse_qs(urlsplit(route.request.url).query)["version_id"][0])
+        route.fulfill(json={"status": "ready", "sampled_count": 2, "reason": None,
+                            "images": [{"index": 1, "time": 80, "block_index": 1 if version == 1 else None,
+                                        "url": image_url}]})
+
+    page.route("**/api/videos/1/document*", respond_document)
+    page.route("**/api/videos/1/screenshots?*", respond_manifest)
+    def respond_image(route):
+        route.fulfill(content_type="image/svg+xml", body='<svg xmlns="http://www.w3.org/2000/svg" width="8" height="4"/>')
+
+    page.route(f"**{image_url}", respond_image)
+    page.context.route(f"**{image_url}", respond_image)
+    page.add_init_script("Object.defineProperty(navigator, 'clipboard', {value: {writeText: async text => {window.copied = text}}})")
+    page.goto(f"{URL}/videos/1")
+    expect(page.locator(".passage").nth(0).locator("img")).to_have_count(0)
+    image = page.locator(".passage").nth(1).get_by_role("link", name="查看 01:20 的原图")
+    expect(image).to_have_attribute("href", image_url)
+    assert image.locator("img").evaluate("async el => { await el.decode(); return el.naturalWidth; }") == 8
+    with page.expect_popup() as full_image:
+        image.click()
+    expect(full_image.value).to_have_url(f"{URL}{image_url}")
+    full_image.value.close()
+    page.get_by_role("button", name="复制全文").click()
+    assert page.evaluate("window.copied") == "[00:00] 线程池使用阻塞队列。\n\n[01:15] 第二段示例。"
+    page.get_by_role("tab", name="AI 优化").click()
+    expect(page.locator(".transcript")).to_have_text(ai_text)
+    expect(page.get_by_role("region", name="截图时间线").get_by_role("img")).to_have_count(1)
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.get_by_role("button", name="下载图文包").click()
+    expect(page.get_by_role("link", name="确认下载")).to_have_attribute("href", "/api/videos/1/illustrated.zip?version_id=2")
+    page.keyboard.press("Escape")
+    page.get_by_role("tab", name="原始稿").click()
+    expect(page.get_by_role("region", name="截图时间线")).to_have_count(0)
+    expect(page.locator(".passage").nth(1).get_by_role("img")).to_have_count(1)
+
+
+def test_text_remains_readable_while_screenshots_pending_or_failed(page):
+    from playwright.sync_api import expect
+
+    status = "pending"
+    page.route("**/api/videos/1/screenshots?*", lambda route: route.fulfill(json={
+        "status": status, "reason": "只有音频轨", "sampled_count": 0, "images": [],
+    }))
+    page.route("**/api/tasks/demo", lambda route: route.fulfill(json={
+        **TASK, "status": "cancelled", "include_screenshots": True, "video_id": 1,
+    }))
+    page.goto(f"{URL}/tasks/demo")
+    expect(page.get_by_role("button", name="重试", exact=True)).to_be_visible()
+    page.get_by_role("link", name="打开已保存的文字稿").click()
+    expect(page.get_by_text("配图处理中，可以先阅读正文。")).to_be_visible()
+    expect(page.locator(".transcript")).to_contain_text(DOCUMENT["text"])
+    status = "failed"
+    expect(page.get_by_text("未能生成配图：只有音频轨。")).to_be_visible()
+    expect(page.locator(".transcript")).to_contain_text(DOCUMENT["text"])
+    expect(page.get_by_role("button", name="下载图文包")).to_have_count(0)
 
 
 @pytest.mark.parametrize("page", [{"viewport": {"width": 1280, "height": 900}},

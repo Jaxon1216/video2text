@@ -23,6 +23,8 @@ flowchart LR
 3. 拿到字幕：不下载视频、不跑 ASR，`engine=subtitle`、`model=<字幕语言>`、`transcript_source=subtitle`。前端会显示“平台字幕 / 平台 AI 字幕”。
 4. 没有字幕或获取出错：照常下载并做 ASR。
 
+Web 新建页勾选「为文字稿配图」后，正文登记完成才查找同一 BV、同一分 P 的本地媒体。已有媒体能解码出画面就直接用于采样。如果只有字幕或音频，则用当前 Cookie 和代理设置，通过 yt-dlp 补取选定分 P 的视频流，并单独保存在 `downloads/screenshot-media/`。补取失败时仍可阅读正文。
+
 **B站字幕需要登录**：不带 Cookie 时 B站只返回弹幕，会直接回退到 ASR。
 
 ## 配置

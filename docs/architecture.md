@@ -66,7 +66,7 @@ B站也有风控，和抖音不是同一种。不带 Cookie 时接口常常只�
 
 `inputs.py` 把 watch、youtu.be、Shorts、live 录播、embed 统一为 watch URL。`factory.py` 选出 `YouTubeDownloader`；字幕调用 `youtube-transcript-api`，人工中文、人工英文、自动中文、自动英文、其他原始语言依次选择，不做自动翻译。片段用 `start + duration` 转为结束时间，交给 `normalize_segments`。标题/作者用短超时 oEmbed 尽力补齐，失败仍保存字幕，时长保持未知。字幕元数据记录实际语言和 `is_generated`。
 
-无有效字幕、字幕失败或强制 ASR 时，既有 Pipeline 先查按 YouTube 视频 ID 缓存的 WAV，再按需调用 yt-dlp；先检查直播状态，只接受完整视频，再下载 `bestaudio/best`。基础依赖含 yt-dlp EJS 和 Deno，uv 同步后本机与 Docker 均可调用 JS 运行时。YouTube 默认沿用系统代理；Cookie 只用于 yt-dlp 音频路径。未完成直播、频道与纯播放列表不在 MVP 范围，详情和真实验收状态见 `platforms/youtube.md`。Pipeline 不包含 YouTube 平台特判。
+无有效字幕、字幕失败或强制 ASR 时，既有 Pipeline 先查按 YouTube 视频 ID 缓存的 WAV，再按需调用 yt-dlp；先检查直播状态，只接受完整视频，再下载 `bestaudio/best`。基础依赖含 yt-dlp EJS 和 Deno，uv 同步后本机与 Docker 均可调用 JS 运行时。YouTube 默认沿用系统代理；Cookie 只传给 yt-dlp（音频或配图视频）。未完成直播、频道与纯播放列表不在 MVP 范围，详情和真实验收状态见 `platforms/youtube.md`。Pipeline 不包含 YouTube 平台特判。
 
 链路是否成功需要分阶段判断：字幕失败会尝试 ASR，但音频下载、ffmpeg 和模型加载仍可能分别失败。2026-10-23 真实验证中，字幕与无字幕 Shorts 回退均有成功结果；重新下载出现 SSL EOF，开启模型离线模式的测试进程也出现缓存加载失败。后续缓存音频转写成功只证明该音频与本地识别路径可用，不能证明重新下载已恢复。当前稳定性仍待验证，记录见 [YouTube 平台说明](platforms/youtube.md)。
 
@@ -98,13 +98,13 @@ src/v2t/
 | `segments.py` | segment 结构与各引擎输出的归一化 |
 | `formatters.py` | 纯函数：时间戳格式化、按 30 秒合并段落、txt / md / srt 渲染 |
 | `naming.py` | 共用文字稿命名：保留中文标题、清理非法字符、标题截到 60 字符、追加稿件类型及日期或视频 ID；原稿和历史版本同名时排他创建并追加序号 |
-| `downloaders/` | `Downloader.download(...) -> DownloadResult`；可选 `fetch_subtitles(...) -> SubtitleResult \| None`（B站与 YouTube 实现，抖音返回 None）；ytdlp.py 共享 Cookie/进度/文件路径逻辑 |
+| `downloaders/` | `Downloader.download(...) -> DownloadResult`；可选 `fetch_subtitles(...) -> SubtitleResult \| None`（B站与 YouTube 实现，抖音返回 None）；可选 `download_video` 面向配图补取带画面的视频；ytdlp.py 共享 Cookie/进度/文件路径逻辑 |
 | `transcribers/` | `Transcriber.transcribe(audio_path, prompt, progress) -> dict` |
 | `factory.py` | 组装 pipeline：provider -> Transcriber（按 provider + model + 配置缓存，模型只加载一次），kind -> Downloader |
 | `services/pipeline.py` | 唯一的流程编排处 |
 | `services/tasks.py` | 工作区排他锁 + `ThreadPoolExecutor`（并发数 `V2T_TASK_WORKERS`，默认 1）；提交新转写、换模型重转写和原参数重试任务，管理取消令牌，把进度快照写库并通知监听者 |
 | `storage/workspace_lock.py` | 跨进程工作区锁，macOS / Linux 使用 `flock`，Windows 使用文件字节锁；进程退出自动释放 |
-| `progress.py` | 各阶段占总进度的区间：preparing / downloading / extracting_audio / transcribing / writing_outputs / indexing |
+| `progress.py` | 各阶段占总进度的区间：preparing / downloading / extracting_audio / transcribing / writing_outputs / indexing；开启配图时另有 screenshot_media / screenshots |
 | `services/library.py` | 登记结果、编辑后另存新版本、同步 AI 交付稿为历史版本、启动时扫描工作区补索引；重转写前核对来源并导入可复用旧音频 |
 | `storage/database.py` | SQLite 连接、查询与写入 |
 | `storage/migrations.py` | SQLite 表结构与版本迁移；启动时由 `AppDatabase` 调用 |
@@ -160,7 +160,7 @@ CLI 和 Web 默认导出统一使用 `标题-稿件类型-视频ID.扩展名`，
 
 `tests/test_*.py` 是不依赖真实平台请求的自动化回归，主要通过 fixture、假下载器/转写器及 pytest 临时目录构造输入。`docs/good-cases.md` 是独立的真实视频手动验收清单，在 Git 中保存公开输入链接、复测步骤和历史结果摘要，不参与任务调度或 pytest 网络执行。
 
-真实媒体、完整文字稿、SQLite 和运行日志仍放在忽略的 `data/` 或 `.v2t/`；ASR 音频及逐字参考稿留在忽略的 `bench/`。同一个视频的下载成功、缓存转写成功和准确率验收分别记录；未来抽帧实验也与已实现的转写能力分开登记。
+真实媒体、完整文字稿、SQLite 和运行日志仍放在忽略的 `data/` 或 `.v2t/`；ASR 音频及逐字参考稿留在忽略的 `bench/`。同一个视频的下载成功、缓存转写成功和准确率验收分别记录；历史 5 秒粗扫样稿与已集成的 80 秒定时配图分别登记。
 
 ## 配置与环境变量
 
@@ -216,3 +216,14 @@ SenseVoice 文件规则参考 [FunASR 加载器](https://github.com/modelscope/F
 任务取消采用协作式检查：排队任务取消线程池 Future；运行任务在下载、抽音频、识别进度和阶段边界检查取消令牌。请求取消后先保持运行状态并设置 `cancel_requested`，实际停止后转为 `cancelled`。不可安全中断的单次模型调用完成后丢弃结果。ffmpeg 取消时终止子进程并清理未完成音频。
 
 交互式 bootstrap 显式重配默认引擎后同步其模型值，包括保持同一 SenseVoice / 火山引擎但修改目录或云模型的情况；普通加载配置仍不迁移旧值。
+
+
+## 文字稿配图
+
+Web 的单条和批量提交均支持 `include_screenshots`；SQLite v3 将其持久化，已有任务默认关闭。关闭不会触发配图用的媒体探测、下载或 FFmpeg。选中时任务先写原稿和原有 segments，入库并将 video_id 绑定到任务，再由 pipeline 获取可解码的视频轨：本地输入、同一来源的下载/缓存（B 站含分 P），最后才由平台下载器补取。补取媒体单独放在 `downloads/screenshot-media/`，不覆盖音频缓存。
+
+`services/screenshots.py` 从视频第 0 秒起每 80 秒取一帧，时刻严格小于视频轨时长。比较相邻样本的 320×180 灰度图，只在 x=[6,314)、y=[9,158) 统计灰度差大于 24 的像素；占比严格超过 2.5% 才保留下一张。首帧始终保留，返回较早页面也会再留一张。保存完整原尺寸 JPEG；按原稿元数据文件名和内容的 SHA256 标识，与可能重建的数字 ID 分开；原子发布到 `screenshots/<元数据指纹>/`，包含 `manifest.json` 和按 1 起始序号命名的 JPEG。
+
+配图失败原因单独保存，任务仍交付正文。取消后清理未发布的图片；进程重启在取得工作区锁后清理遗留截图暂存目录。后端重试已入库的中断任务时只重新生成配图，同一稿件不会并发重复重试。发布与接受取消共享短临界区。
+
+`services/illustrated_export.py` 按当前版本计算截图所属的 30 秒阅读段。先匹配包含该时刻的段，否则匹配最近段，等距选前段；无时间戳时全部进独立时间线。网页和图文 ZIP 共用此结果，图文 ZIP 的 Markdown 每段只出现一次，图片均为包内相对路径。普通 Markdown/纯文字复制不带图。
