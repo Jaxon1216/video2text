@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { getConfig, getModels, submitSources, type AppConfig, type ProviderModels } from "../api";
 import { EngineSelects } from "../components/EngineSelects";
+import { BilibiliPicker, useBilibiliPicker } from "../components/BilibiliPicker";
 import { initialModel, providerLabel } from "../format";
 import { navigate } from "../router";
 
@@ -16,12 +17,14 @@ export function HomePage() {
     return () => { mounted.current = false; };
   }, []);
   const [source, setSource] = useState("");
+  const picker = useBilibiliPicker(source);
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
   const [prompt, setPrompt] = useState("");
   const [includeScreenshots, setIncludeScreenshots] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const submitLock = useRef(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -42,7 +45,7 @@ export function HomePage() {
   const models = group?.models ?? [];
   const selectedModel = models.find(item => item.id === model);
   const missingSenseVoice = provider === "sensevoice" && (!model || selectedModel?.cache_status === "missing" || selectedModel?.cache_status === "incomplete");
-  const canSubmit = Boolean(config && model && source.trim() && !missingSenseVoice);
+  const canSubmit = Boolean(config && model && source.trim() && !missingSenseVoice && !picker.pending && !picker.invalidSource);
 
   const refreshModels = async () => {
     setRefreshing(true);
@@ -57,21 +60,31 @@ export function HomePage() {
     }
   };
 
-  const submit = async (event?: FormEvent) => {
-    event?.preventDefault();
-    if (submitting || !canSubmit) return;
+  const transcribe = async (selected: string[] | null) => {
+    if (submitLock.current || !canSubmit) return;
+    submitLock.current = true;
     setError(null);
     setSubmitting(true);
     try {
-      const ids = await submitSources(source, { provider, model, prompt, include_screenshots: includeScreenshots });
+      const ids = await submitSources(selected?.join("\n") ?? source, {
+        provider, model, prompt, include_screenshots: includeScreenshots,
+      }, selected !== null);
       setSource("");
       if (ids.length === 1) navigate(`/tasks/${ids[0]}`);
       else navigate("/tasks");
     } catch (err) {
       setError((err as Error).message);
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
+  };
+
+  const submit = (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!canSubmit || submitting) return;
+    if (picker.catalog && !picker.selection) picker.setOpen(true);
+    else void transcribe(picker.selection);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -96,6 +109,23 @@ export function HomePage() {
           rows={4}
           autoFocus
         />
+        {picker.pending && <p className="catalog-summary" role="status">正在读取 B 站选集目录…</p>}
+        {picker.invalidSource && <p className="error catalog-summary" role="status">请修改 B 站链接：{picker.error}</p>}
+        {picker.error && !picker.invalidSource && (
+          <p className="catalog-summary" role="status">目录读取失败：{picker.error}。可直接转写当前链接。{" "}
+            <button type="button" className="link-button" onClick={picker.retry}>重新读取</button>
+          </p>
+        )}
+        {picker.catalog && (
+          <div className="catalog-summary">
+            <span>{picker.catalog.title} · 共 {picker.catalog.items.length} 集
+              {picker.selection && ` · 已选 ${picker.selection.length} 集`}
+            </span>
+            <button type="button" className="link-button" onClick={() => picker.setOpen(true)}>
+              {picker.selection ? "修改选集" : "查看选集"}
+            </button>
+          </div>
+        )}
         <div className="screenshot-option">
           <label><input type="checkbox" checked={includeScreenshots} onChange={event => setIncludeScreenshots(event.target.checked)}
             aria-describedby="screenshot-hint" /> 为文字稿配图</label>
@@ -110,7 +140,7 @@ export function HomePage() {
             </span>
           </button>
           <button type="submit" className="primary" disabled={submitting || !canSubmit}>
-            {submitting ? "提交中…" : "转成文字"}
+            {submitting ? "提交中…" : picker.selection ? `转写所选 ${picker.selection.length} 集` : picker.catalog ? "选择集数" : "转成文字"}
             <kbd>⌘↵</kbd>
           </button>
         </div>
@@ -139,6 +169,11 @@ export function HomePage() {
         {error && <p className="error">{error}</p>}
         {!config && error && <button type="button" className="link-button" onClick={() => setReload(value => value + 1)}>重新加载配置</button>}
       </form>
+      {picker.open && picker.catalog && (
+        <BilibiliPicker catalog={picker.catalog} selection={picker.selection} includeScreenshots={includeScreenshots}
+          onScreenshotsChange={setIncludeScreenshots} onConfirm={picker.confirm} onCancel={() => picker.setOpen(false)}
+          onSubmit={transcribe} submitting={submitting} canSubmit={canSubmit} error={error} />
+      )}
 
     </section>
   );

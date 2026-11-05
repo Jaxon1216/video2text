@@ -57,6 +57,7 @@ def page(request):
                 "tasks/demo": TASK,
                 "tasks/transcribe": {"task_id": "demo"},
                 "tasks/batch": {"items": [TASK, {**TASK, "id": "second"}]},
+                "bilibili/catalog": {"kind": "single", "title": "单条视频", "items": []},
                 "videos": {"items": [VIDEO]},
                 "videos/1/document": DOCUMENT,
                 "videos/1/screenshots": {"status": "disabled", "reason": None, "sampled_count": 0, "images": []},
@@ -576,3 +577,127 @@ def test_old_qwen_transcript_retranscribes_with_available_model(page):
     page.get_by_role("button", name="开始重转写").click()
     expect(page).to_have_url(f"{URL}/tasks/qwen-new")
     assert submitted[0]["model"] == "Qwen/Qwen3-ASR-1.7B"
+
+
+@pytest.mark.parametrize("viewport_width", [390, 1200])
+def test_bilibili_selection_sends_only_confirmed_episodes_in_catalog_order(page, viewport_width):
+    from playwright.sync_api import expect
+
+    page.set_viewport_size({"width": viewport_width, "height": 844})
+    source = "https://www.bilibili.com/video/BV19r4y1w7Nx/"
+    items = [{"source": f"{source}?p={i}", "title": f"第{i}讲示例", "duration": 80 if i != 2 else None,
+              "selected": i == 2} for i in range(1, 5)]
+    page.route("**/api/bilibili/catalog", lambda route: route.fulfill(json={
+        "kind": "parts", "title": "课程分集", "items": items,
+    }))
+    tasks = []
+    page.on("request", lambda r: tasks.append(r) if r.method == "POST" and "/api/tasks/" in r.url else None)
+    page.goto(URL)
+    page.get_by_label("粘贴链接").fill(f"{source}?p=2")
+    dialog = page.get_by_role("dialog", name="选择转写集数")
+    expect(dialog.get_by_role("checkbox", name=re.compile("^P2 "))).to_be_checked()
+    dialog.get_by_role("button", name="全选").click()
+    dialog.get_by_role("button", name="清空选择").click()
+    expect(dialog.get_by_role("button", name="返回设置")).to_be_disabled()
+    page.keyboard.press("Escape")
+    expect(dialog).to_have_count(0)
+    page.get_by_role("button", name="查看选集").click()
+    expect(dialog.get_by_role("checkbox", name=re.compile("^P2 "))).to_be_checked()
+    dialog.get_by_role("checkbox", name=re.compile("^P2 ")).uncheck()
+    for part in (4, 1):
+        dialog.get_by_role("checkbox", name=re.compile(f"^P{part} ")).check()
+    dialog.get_by_role("button", name="返回设置").click()
+    page.get_by_role("button", name="修改选集").click()
+    dialog.get_by_role("checkbox", name=re.compile("^P3 ")).check()
+    dialog.get_by_role("button", name="取消").click()
+    page.get_by_role("checkbox", name="为文字稿配图").check()
+    assert not tasks
+    page.get_by_role("button", name="转写所选 2 集").click()
+    expect(page).to_have_url(f"{URL}/tasks")
+    assert len(tasks) == 1 and tasks[0].url.endswith("/api/tasks/batch")
+    assert tasks[0].post_data_json == {"sources": [items[0]["source"], items[3]["source"]],
+                                       "provider": "faster-whisper", "model": "small", "prompt": "",
+                                       "include_screenshots": True, "ordered": True}
+
+
+def test_catalog_failure_allows_retry_or_transcription_of_original_link(page):
+    from playwright.sync_api import expect
+
+    attempts = []
+    def catalog(route):
+        attempts.append(route.request.post_data_json["source"])
+        route.fulfill(status=502, json={"detail": "平台繁忙"})
+    page.route("**/api/bilibili/catalog", catalog)
+    page.goto(URL)
+    source = "来自 B 站 https://b23.tv/demo"
+    page.get_by_label("粘贴链接").fill(source)
+    expect(page.get_by_text("目录读取失败", exact=False)).to_contain_text("可直接转写当前链接")
+    with page.expect_request("**/api/bilibili/catalog"):
+        page.get_by_role("button", name="重新读取").click()
+    expect(page.get_by_role("button", name="重新读取")).to_be_visible()
+    with page.expect_request("**/api/tasks/transcribe") as action:
+        page.get_by_role("button", name="转成文字").click()
+    assert action.value.post_data_json["source"] == source
+    assert attempts == ["https://b23.tv/demo", "https://b23.tv/demo"]
+
+
+def test_old_catalog_response_does_not_reopen_picker_on_multiline_input(page):
+    from playwright.sync_api import expect
+
+    held = []
+    page.route("**/api/bilibili/catalog", lambda route: held.append(route))
+    page.goto(URL)
+    source = page.get_by_label("粘贴链接")
+    with page.expect_request("**/api/bilibili/catalog"):
+        source.fill("BV19r4y1w7Nx")
+    source.fill("BV19r4y1w7Nx\nBV1xx411c7XD")
+    assert len(held) == 1
+    held[0].fulfill(json={"kind": "parts", "title": "已替换的链接", "items": [
+        {"source": "BV19r4y1w7Nx", "title": "旧分集", "duration": 109, "selected": True},
+    ]})
+    with page.expect_request("**/api/tasks/batch") as action:
+        page.get_by_role("button", name="转成文字").click()
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    assert action.value.post_data_json["sources"] == ["BV19r4y1w7Nx", "BV1xx411c7XD"]
+    assert "ordered" not in action.value.post_data_json
+
+
+def test_season_picker_submits_one_ordered_batch_directly_from_dialog(page):
+    from playwright.sync_api import expect
+
+    sources = [f"https://www.bilibili.com/video/{bv}/" for bv in ("BV19r4y1w7Nx", "BV1xx411c7XD")]
+    page.route("**/api/bilibili/catalog", lambda route: route.fulfill(json={
+        "kind": "season", "title": "多投稿合集", "items": [
+            {"source": s, "title": title, "duration": 88, "selected": i == 1}
+            for i, (s, title) in enumerate(zip(sources, ["入门", "进阶"]))
+        ],
+    }))
+    page.goto(URL)
+    page.get_by_label("粘贴链接").fill(sources[1])
+    dialog = page.get_by_role("dialog", name="选择转写集数")
+    expect(dialog.get_by_role("checkbox", name=re.compile("进阶"))).to_be_checked()
+    dialog.get_by_role("button", name="全选").click()
+    dialog.get_by_role("checkbox", name="为文字稿配图").check()
+    with page.expect_request("**/api/tasks/batch") as action:
+        dialog.get_by_role("button", name="转写所选 2 集").click()
+    expect(page).to_have_url(f"{URL}/tasks")
+    assert action.value.post_data_json["sources"] == sources
+    assert action.value.post_data_json["include_screenshots"] and action.value.post_data_json["ordered"]
+
+
+def test_invalid_explicit_page_must_be_corrected_before_submitting(page):
+    from playwright.sync_api import expect
+
+    def preview(route):
+        if "?p=oops" in route.request.post_data_json["source"]:
+            route.fulfill(status=400, json={"detail": "p 必须是正整数"})
+        else:
+            route.fulfill(json={"kind": "single", "title": "课程", "items": []})
+    page.route("**/api/bilibili/catalog", preview)
+    page.goto(URL)
+    source = page.get_by_label("粘贴链接")
+    source.fill("https://www.bilibili.com/video/BV19r4y1w7Nx/?p=oops")
+    expect(page.get_by_role("status")).to_contain_text("p 必须是正整数")
+    expect(page.get_by_role("button", name="转成文字")).to_be_disabled()
+    source.fill("https://www.bilibili.com/video/BV19r4y1w7Nx/?p=1")
+    expect(page.get_by_role("button", name="转成文字")).to_be_enabled()

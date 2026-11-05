@@ -31,6 +31,14 @@ def task_workers_from_env(default: int = 1) -> int:
     return max(1, value)
 
 
+def _task_source(source: str) -> str:
+    try:
+        parsed = parse_source(source)
+    except ValueError:
+        return source  # Invalid inputs still become ordinary failed tasks with their original input.
+    return str(parsed.path) if parsed.path is not None else source
+
+
 class TaskService:
     def __init__(
         self, *, database: AppDatabase, library: WorkspaceLibrary, pipeline_factory: PipelineFactory,
@@ -97,15 +105,8 @@ class TaskService:
                 latest = self.database.screenshot_task(resume_video_id)
                 if latest and latest.status in {"queued", "running"}:
                     raise ValueError("这篇文字稿已有配图任务正在进行")
-            try:
-                parsed_source = parse_source(source)
-            except ValueError:
-                pass  # Invalid inputs still become ordinary failed tasks with their original input.
-            else:
-                if parsed_source.path is not None:
-                    source = str(parsed_source.path)
             task = self.database.create_task(
-                kind="transcription", source_input=source, provider=provider, model=model,
+                kind="transcription", source_input=_task_source(source), provider=provider, model=model,
                 prompt=prompt, force_asr=force_asr, retranscribe_video_id=retranscribe_video_id,
                 include_screenshots=include_screenshots, video_id=resume_video_id,
             )
@@ -120,6 +121,45 @@ class TaskService:
                 self._futures[task.id] = future
                 self._cancel_events[task.id] = cancel_event
             return task
+
+    def submit_ordered_transcriptions(
+        self, *, sources: list[str], provider: str, model: str, prompt: str = "", include_screenshots: bool = False,
+    ) -> list[TaskRecord]:
+        with self._submit_lock, self._lock:
+            if self._closed:
+                raise RuntimeError("转写服务已关闭，请重新启动后再提交任务")
+            tasks = self.database.create_tasks(
+                kind="transcription", sources=[_task_source(source) for source in sources],
+                provider=provider, model=model, prompt=prompt, force_asr=not self.prefer_subtitles,
+                include_screenshots=include_screenshots, queue_events=True,
+            )
+            for task in tasks:
+                self._futures[task.id] = Future()
+                self._cancel_events[task.id] = Event()
+            try:
+                self.executor.submit(self._run_ordered_transcriptions, tasks)
+            except RuntimeError as exc:
+                for task in tasks:
+                    self._futures[task.id].cancel()
+                    self.database.fail_task(task.id, error_message=str(exc))
+                raise
+            return tasks
+
+    def _run_ordered_transcriptions(self, tasks: list[TaskRecord]) -> None:
+        # One worker runs the entire selection; no worker waits for a predecessor.
+        for task in tasks:
+            with self._lock:
+                future = self._futures[task.id]
+                if not future.set_running_or_notify_cancel():
+                    continue
+                cancel_event = self._cancel_events[task.id]
+            try:
+                self._run_transcription(task, cancel_event)
+            except Exception as exc:
+                # _run_transcription has recorded the failure. Continue with the next selection.
+                future.set_exception(exc)
+            else:
+                future.set_result(None)
 
     def submit_retranscription(
         self, *, video_id: int, provider: str, model: str, prompt: str = ""

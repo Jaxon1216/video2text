@@ -123,7 +123,9 @@ YouTube 可直接传 `source: "https://youtu.be/dQw4w9WgXcQ"`，也支持 watch�
 }
 ```
 
-返回的每个任务都可以继续用单任务进度接口轮询。
+可选布尔值 `ordered` 默认为 `false`。传 `true` 时，服务按请求中的来源顺序执行这一批任务；上一项完成、失败或取消后继续下一项。各项有独立的任务 ID，可以单独查看进度、取消和重试。Web 选集按目录顺序传入所选来源。
+
+`POST /api/bilibili/catalog` 接受 `{"source": "https://www.bilibili.com/video/BV19r4y1w7Nx/?p=3"}`。这是只读的目录预览。返回 `kind`（single / parts / season）、`title` 和按平台目录排列的 `items`。每项含可用于提交的 `source`、标题 `title`、时长 `duration`（秒，未知为 null）、当前集标记 `selected`。无效输入或不存在的分 P 返回 400；平台目录不可用或只返回了部分已声明的目录时返回 502。
 
 ### 3. 查询任务列表
 

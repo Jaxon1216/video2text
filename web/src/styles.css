@@ -997,3 +997,51 @@ a.stamp:hover {
   .library-title { padding-right: 6rem; }
   .library-meta { flex-wrap: wrap; gap: 0.4rem 0.8rem; }
 }
+
+.catalog-summary {
+  margin: .8rem 0 .4rem;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: .3rem .8rem;
+  font-size: .9rem;
+  overflow-wrap: anywhere;
+}
+.catalog-dialog {
+  width: min(36rem, calc(100% - 2rem));
+  max-height: min(46rem, 88dvh);
+  padding: 0;
+  color: var(--ink);
+  border: 1px solid var(--rule-strong);
+  background: var(--paper-card);
+  box-shadow: 6px 6px 0 var(--paper-deep);
+}
+.catalog-dialog[open] { display: flex; flex-direction: column; }
+.catalog-dialog::backdrop { background: rgb(30 26 21 / 45%); }
+.catalog-dialog header, .catalog-dialog footer { padding: 1rem 1.25rem; }
+.catalog-dialog h2 { font-size: 1.4rem; margin: .25rem 0 .65rem; overflow-wrap: anywhere; }
+.catalog-controls, .catalog-actions {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  font-size: .9rem;
+}
+.catalog-controls { justify-content: space-between; }
+.catalog-items { overflow-y: auto; border-block: 1px solid var(--rule); overscroll-behavior: contain; }
+.catalog-items label {
+  display: grid;
+  grid-template-columns: auto min-content 1fr auto;
+  align-items: baseline;
+  gap: .65rem;
+  line-height: 1.45;
+  padding: .65rem 1.25rem;
+  cursor: pointer;
+}
+.catalog-items label + label { border-top: 1px solid var(--rule); }
+.catalog-items label:hover, .catalog-items label:focus-within { background: var(--paper-deep); }
+.catalog-items input { accent-color: var(--cinnabar); }
+.catalog-index, .catalog-duration { font: .8rem var(--mono); color: var(--ink-faint); white-space: nowrap; }
+.catalog-title { overflow-wrap: anywhere; }
+.catalog-controls input { accent-color: var(--cinnabar); }
+.catalog-actions { justify-content: flex-end; flex-wrap: wrap; margin-top: .85rem; }
+.catalog-actions .link-button { margin-right: auto; }

@@ -4,6 +4,7 @@ import json
 import sqlite3
 import threading
 import uuid
+from dataclasses import asdict
 from datetime import datetime
 
 from v2t.config import Settings
@@ -37,52 +38,47 @@ class AppDatabase:
         prompt: str = "", force_asr: bool = False, retranscribe_video_id: int | None = None,
         include_screenshots: bool = False, video_id: int | None = None,
     ) -> TaskRecord:
-        now = utc_now()
-        task = TaskRecord(
-            id=uuid.uuid4().hex,
-            kind=kind,
-            status="queued",
-            source_input=source_input,
-            provider=provider,
-            model=model,
-            workspace_root=str(self.settings.workspace_root),
-            prompt=prompt,
-            force_asr=force_asr,
-            include_screenshots=include_screenshots,
-            video_id=video_id,
-            retranscribe_video_id=retranscribe_video_id,
-            created_at=now,
-        )
+        return self.create_tasks(
+            kind=kind, sources=[source_input], provider=provider, model=model, prompt=prompt,
+            force_asr=force_asr, retranscribe_video_id=retranscribe_video_id,
+            include_screenshots=include_screenshots, video_id=video_id,
+        )[0]
+
+    def create_tasks(
+        self, *, kind: str, sources: list[str], provider: str, model: str,
+        prompt: str = "", force_asr: bool = False, retranscribe_video_id: int | None = None,
+        include_screenshots: bool = False, video_id: int | None = None, queue_events: bool = False,
+    ) -> list[TaskRecord]:
+        created_at = utc_now()
+        tasks = [
+            TaskRecord(
+                id=uuid.uuid4().hex, kind=kind, status="queued", source_input=source, provider=provider,
+                model=model, workspace_root=str(self.settings.workspace_root), prompt=prompt,
+                force_asr=force_asr, include_screenshots=include_screenshots, video_id=video_id,
+                retranscribe_video_id=retranscribe_video_id, created_at=created_at,
+                current_message="queued" if queue_events else "",
+            )
+            for source in sources
+        ]
         with self._connect() as conn:
-            conn.execute(
+            conn.executemany(
                 """
                 INSERT INTO tasks (
                     id, kind, status, source_input, provider, model, workspace_root,
-                    progress_percent, current_stage, current_message, error_message, created_at,
-                    prompt, force_asr, retranscribe_video_id, include_screenshots, video_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    task.id,
-                    task.kind,
-                    task.status,
-                    task.source_input,
-                    task.provider,
-                    task.model,
-                    task.workspace_root,
-                    task.progress_percent,
-                    task.current_stage,
-                    task.current_message,
-                    task.error_message,
-                    task.created_at,
-                    task.prompt,
-                    1 if task.force_asr else 0,
-                    task.retranscribe_video_id,
-                    int(include_screenshots),
-                    video_id,
-                ),
+                    current_message, created_at, prompt, force_asr, retranscribe_video_id,
+                    include_screenshots, video_id
+                ) VALUES (:id, :kind, :status, :source_input, :provider, :model, :workspace_root,
+                    :current_message, :created_at, :prompt, :force_asr, :retranscribe_video_id,
+                    :include_screenshots, :video_id)
+                """, (asdict(task) for task in tasks),
             )
-        return task
+            if queue_events:
+                conn.executemany(
+                    """INSERT INTO task_progress_events (task_id, status, stage, message, created_at)
+                       VALUES (?, 'queued', 'queued', 'queued', ?)""",
+                    ((task.id, task.created_at) for task in tasks),
+                )
+        return tasks
 
     def record_progress(self, snapshot: ProgressSnapshot) -> None:
         with self._connect() as conn:
@@ -212,7 +208,8 @@ class AppDatabase:
         sql = "SELECT * FROM tasks"
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
-        sql += " ORDER BY created_at DESC"
+        # A selection shares its creation time. Preserve its catalog order inside a newest-first list.
+        sql += " ORDER BY created_at DESC, rowid ASC"
         with self._connect() as conn:
             rows = conn.execute(sql, tuple(params)).fetchall()
         return [self._task_from_row(row) for row in rows]

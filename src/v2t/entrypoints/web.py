@@ -17,6 +17,7 @@ from starlette.background import BackgroundTask
 from v2t.storage.database import AppDatabase
 from v2t.formatters import export_document
 from v2t.inputs import parse_source, parse_source_list
+from v2t.services.bilibili_catalog import CatalogUnavailable, preview_bilibili_catalog
 from v2t.services.library import WorkspaceLibrary
 from v2t.services.illustrated_export import screenshot_view, video_screenshot_key, write_illustrated_zip
 from v2t.services.screenshots import screenshot_path
@@ -43,6 +44,10 @@ def resolve_web_dist() -> Path | None:
     return path if (path / "index.html").is_file() else None
 
 
+class BilibiliCatalogRequest(BaseModel):
+    source: str
+
+
 class TranscribeTaskRequest(BaseModel):
     source: str
     provider: str | None = None
@@ -58,6 +63,7 @@ class BatchTranscribeTaskRequest(BaseModel):
     model: str | None = None
     prompt: str = ""
     include_screenshots: bool = False
+    ordered: bool = False
 
 
 class RetranscribeRequest(BaseModel):
@@ -122,6 +128,16 @@ def create_app(
     app = FastAPI(title="video2text", lifespan=lifespan)
     dist = web_dist if web_dist is not None else resolve_web_dist()
 
+    @app.post("/api/bilibili/catalog")
+    def bilibili_catalog(payload: BilibiliCatalogRequest) -> JSONResponse:
+        try:
+            catalog = preview_bilibili_catalog(payload.source)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except CatalogUnavailable as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return JSONResponse(asdict(catalog))
+
     @app.post("/api/tasks/transcribe")
     async def create_transcription_task(payload: TranscribeTaskRequest) -> JSONResponse:
         _validate_sources([payload.source])
@@ -153,6 +169,7 @@ def create_app(
             model=model,
             prompt=payload.prompt,
             include_screenshots=payload.include_screenshots,
+            ordered=payload.ordered,
         )
         return JSONResponse(
             {
@@ -490,7 +507,12 @@ def _submit_transcription_tasks(
     model: str,
     prompt: str = "",
     include_screenshots: bool = False,
+    ordered: bool = False,
 ) -> list[TaskRecord]:
+    if ordered:
+        return task_service.submit_ordered_transcriptions(
+            sources=sources, provider=provider, model=model, prompt=prompt, include_screenshots=include_screenshots,
+        )
     return [
         task_service.submit_transcription(
             source=source,

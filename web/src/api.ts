@@ -148,14 +148,26 @@ export function getConfig(): Promise<AppConfig> {
   return request<AppConfig>("/api/config");
 }
 
+export interface BilibiliCatalog {
+  kind: "single" | "parts" | "season";
+  title: string;
+  items: { source: string; title: string; duration: number | null; selected: boolean }[];
+}
+
+export function getBilibiliCatalog(source: string): Promise<BilibiliCatalog> {
+  return request("/api/bilibili/catalog", {
+    method: "POST", body: JSON.stringify({ source }),
+  });
+}
+
 /** Submits one task per non-empty line; returns the created task ids in order. */
-export async function submitSources(sourceText: string, options: SubmitOptions & { include_screenshots: boolean }): Promise<string[]> {
+export async function submitSources(sourceText: string, options: SubmitOptions & { include_screenshots: boolean }, ordered = false): Promise<string[]> {
   const lines = sourceText
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith("#"));
   if (lines.length === 0) throw new Error("请先粘贴一个链接或分享文本");
-  if (lines.length === 1) {
+  if (lines.length === 1 && !ordered) {
     const created = await request<{ task_id: string }>("/api/tasks/transcribe", {
       method: "POST",
       body: JSON.stringify({ source: lines[0], ...options }),
@@ -164,7 +176,7 @@ export async function submitSources(sourceText: string, options: SubmitOptions &
   }
   const created = await request<{ items: Task[] }>("/api/tasks/batch", {
     method: "POST",
-    body: JSON.stringify({ sources: lines, ...options }),
+    body: JSON.stringify({ sources: lines, ...options, ...(ordered ? { ordered: true } : {}) }),
   });
   return created.items.map((task) => task.id);
 }
