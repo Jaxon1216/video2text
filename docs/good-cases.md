@@ -21,6 +21,7 @@
 | 案例 ID | 输入 | 值得复测的路径 | 最近记录 |
 | --- | --- | --- | --- |
 | `bilibili-redis-course` | [Redis 课程，BV1o4p568Etd](https://www.bilibili.com/video/BV1o4p568Etd/) | 中文长课程、混合技术术语、带时间戳原稿；文字稿配图的长课端到端回归 | 2026-11-05 |
+| `bilibili-gpm-course` | [Golang深入理解GPM模型，BV19r4y1w7Nx](https://www.bilibili.com/video/BV19r4y1w7Nx/) | B 站远程下载、多分 P、渐显课件，正文和截图对读 | 2026-11-05 |
 | `youtube-zoo` | [Me at the zoo，jNQXAC9IVRw](https://www.youtube.com/watch?v=jNQXAC9IVRw) | 字幕优先、强制 ASR、完整 WAV 复用、四种导出；保留下载和模型失败记录 | 2026-10-23 |
 | `youtube-shorts-no-subtitles` | [Shorts，BGQWPY4IigY](https://www.youtube.com/shorts/BGQWPY4IigY) | 平台字幕不可用时自动下载音频并转写 | 2026-10-23 |
 
@@ -81,6 +82,19 @@ uv run video2text tx "https://www.bilibili.com/video/BV1o4p568Etd/" \
 本次配图实测使用了独立的 `data/redis-illustrated-mvp/` 工作区。服务未运行时，在仓库根目录执行 `uv run video2text ui --workspace "$PWD/data/redis-illustrated-mvp" --port 8876` 即可查看这次的任务和文字稿。
 
 历史材料位于 `data/downloads/BV1o4p568Etd.mp4`、`data/metadata/` 中同标题 JSON、`data/exports/Redis-完整课程-校订稿.txt`、`data/exports/Redis-校订说明.md`、`data/exports/Redis-关键帧图文样稿/`。这些位置只用于寻找当前本机证据，不要求其他 checkout 拥有相同文件、视频库编号或缓存文件名。
+
+## bilibili-gpm-course
+
+2026-11-05，在 `9915dee` 的 Web 新建页勾选「为文字稿配图」。这门课有 18 个分 P。先提交[原链接](https://www.bilibili.com/video/BV19r4y1w7Nx/)，再单独提交[第 2 讲](https://www.bilibili.com/video/BV19r4y1w7Nx/?p=2)。两次都用同一独立工作区，`faster-whisper small`、中文、beam=1、无术语提示。分别下载对应分 P 的媒体，平台字幕未命中，转用本地 ASR，配图复用刚下载的视频。
+
+| 来源 | 实际转写和配图 | 阅读抽查 |
+| --- | --- | --- |
+| P1「课程阶段目标」 | 108.3 秒的片段，全任务 10.4 秒。2 个时点保留 2 张，19 个 ASR 片段组成 3 个阅读段 | 0:00 是片头动画，1:20 是 MindNode 课程大纲，输入法仍在组词。截图标题中有 `GMP`，原稿多处识别成 `GNP` |
+| P2「调度器的由来和分析」 | 1357.464 秒，全任务 152.26 秒。0 至 1280 秒的 17 个时点各留一张，112 个 ASR 片段组成 36 个阅读段 | 10:40 截到 N 对 1 的协程映射，12:00 截到 M 对 N 的图，可在两段讲解旁对读 |
+
+两份稿件各自的阅读段在网页与 ZIP 中逐段一致，所有 JPEG 的哈希一致，图片均为 1920×1080。P1 与 P2 分别复用了本次 ASR 下载的对应视频。复测入口：[P1 文字稿](http://127.0.0.1:8876/videos/3) · [P1 图文包](../data/redis-illustrated-mvp/exports/BV19r4y1w7Nx/P1/BV19r4y1w7Nx-P1-图文包.zip) · [P2 文字稿](http://127.0.0.1:8876/videos/4) · [P2 图文包](../data/redis-illustrated-mvp/exports/BV19r4y1w7Nx/P2/BV19r4y1w7Nx-P2-图文包.zip)。
+
+第 2 讲的原视频在 1:20 只显示「单进程时代的两个问题」的第一条，1:40 两条都已显示，2:40 已切换为 CPU 调度图。抽样拿到了 1:20 和 2:40，漏掉了中间完整的两条说明。这个例子用于观察渐显课件的局限，未对全课程统计漏页率或逐字准确率。
 
 ## youtube-zoo
 
